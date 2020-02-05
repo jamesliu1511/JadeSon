@@ -1,0 +1,31 @@
+{
+	"payload": {
+		"resource": {
+			"name": "0c7202d75448486692c344bd426f58c0",
+			"ver": 3,
+			"properties": [
+				{
+					"name": "name",
+					"type": "String",
+					"values": [
+						"28 Days"
+					]
+				},
+				{
+					"name": "birthday",
+					"type": "date",
+					"values": [
+						15566666
+					]
+				},
+				{
+					"name": "id",
+					"type": "String",
+					"values": [
+						1141055699
+					]
+				}
+			]
+		}
+	}
+}

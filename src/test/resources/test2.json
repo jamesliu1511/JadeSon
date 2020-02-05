@@ -1,0 +1,30 @@
+{
+  "name": "abc",
+   "version": 9,
+  "description": "test xxx",
+  "properties": [
+    {
+      "name": "isName",
+      "type": "common",
+      "values": [
+        true
+      ],
+      "multivalued": false,
+      "propertyType": "attribute"
+    },
+    {
+      "name": "duration",
+      "type": "common",
+      "values": [
+        1800
+      ],
+      "multivalued": false,
+      "propertyType": "attribute"
+    }
+  ],
+  "createdTime": 1565964192210,
+  "updatedTime": 1565964192210,
+  "state": "active",
+  "lastCheckedTime": 0,
+  "lockInstant": 1565964192250
+}

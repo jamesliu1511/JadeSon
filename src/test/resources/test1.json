@@ -1,0 +1,24 @@
+{
+	"header": {
+		"status": "success",
+		"pageIndex": 1,
+		"pageSize": 25,
+		"total": 1,
+		"page": 1
+	},
+	"payload": [
+		{
+			"id": "abc",
+			"asset": [
+				{
+					"ver": "2.0",
+					"id": "1ef5efeaab2b4aeb8cb4c4cb5b1eddc6"
+				},
+				{
+					"ver": "1.0",
+					"id": "3504df3eb3b94c329c4eeef9cd4742cb"
+				}
+			]
+		}
+	]
+}
