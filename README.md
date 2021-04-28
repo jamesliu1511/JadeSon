@@ -151,16 +151,16 @@ output:
 
 ```
 		JadeDoc doc = JadeDoc.build().create(read("test2.json"));
-		System.out.println(doc.fetch("properties[fn:equal(@name,'isLookbackVODTitle')]/*[0]"));
-		String content = doc.compileX("I love @{name}, but hate @{properties[fn:equal(@name,'isLookbackVODTitle')]/*[0]/name}");
+		System.out.println(doc.fetch("properties[fn:equal(@name,'isTitle')]/*[0]"));
+		String content = doc.compileX("I love @{name}, but hate @{properties[fn:equal(@name,'isTitle')]/*[0]/name}");
 		System.out.println(content);
 		
-		content = doc.forCompile("#").compileX("I love #{name}, but hate #{properties[fn:equal(@name,'isLookbackVODTitle')]/*[0]/name}");
+		content = doc.forCompile("#").compileX("I love #{name}, but hate #{properties[fn:equal(@name,'isTitle')]/*[0]/name}");
 		System.out.println(content);
 
-{"name":"isLookbackVODTitle","bundle":"common","values":[true],"attrTypeUrn":"urn:cms:attrType:DFWboolean","multivalued":false,"propertyType":"attribute"}
-I love DFWGenericVODTitleDFWSchedulefa52d0eb92213d4fa3d2256411dd99e3, but hate isLookbackVODTitle
-I love DFWGenericVODTitleDFWSchedulefa52d0eb92213d4fa3d2256411dd99e3, but hate isLookbackVODTitle
+{"name":"isTitle","bundle":"common","values":[true],"attrTypeUrn":"attrType:Dboolean","multivalued":false,"propertyType":"attribute"}
+I love Schedulefa52d0eb92213d4fa3d2256411dd99e3, but hate isTitle
+I love Schedulefa52d0eb92213d4fa3d2256411dd99e3, but hate isTitle
 
 ```
 
@@ -181,10 +181,10 @@ write customized function, then register to system by FunctionPool.registerFm
 ```
 		JadeDoc.JsonTemplate template = JadeDoc.createTemplate();
 		template.pattern("header", "head");
-		template.pattern("paginatedResources[0]", "resource/a");
-		template.pattern("paginatedResources[1]", "resource/b");
-		template.pattern("paginatedResources[2]", "resource/c");
-		template.pattern("paginatedResources[<4,6>]", "resource/d");
+		template.pattern("Resources[0]", "resource/a");
+		template.pattern("Resources[1]", "resource/b");
+		template.pattern("Resources[2]", "resource/c");
+		template.pattern("Resources[<4,6>]", "resource/d");
 
 		template.action("resource/d[startTime>155624970000][fm:remove(@program, @rating, @liveChannel)]");
 		template.action("resource/b[fm:remove(@program, @rating, @liveChannel)]");
@@ -204,10 +204,10 @@ write customized function, then register to system by FunctionPool.registerFm
 ```
 		JadeDoc.JsonTemplate template = JadeDoc.createTemplate();
 		template.pattern("header", "head");
-		template.pattern("paginatedResources[0]", "resource/a");
-		template.pattern("paginatedResources[1]", "resource/b");
-		template.pattern("paginatedResources[2]", "resource/c");
-		template.pattern("paginatedResources[<4,6>]", "resource/d");
+		template.pattern("Resources[0]", "resource/a");
+		template.pattern("Resources[1]", "resource/b");
+		template.pattern("Resources[2]", "resource/c");
+		template.pattern("Resources[<4,6>]", "resource/d");
 
 		Builder builder = JadeDoc.template(template);
 		JadeDoc model = builder.create(read("schedules.json"));
