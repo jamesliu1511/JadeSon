@@ -1,5 +1,7 @@
 package com.jade.path;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.io.Reader;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
@@ -20,11 +22,19 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
 import org.antlr.runtime.Token;
 import org.antlr.runtime.TokenStream;
 import org.apache.commons.lang3.StringUtils;
 import org.stringtemplate.v4.ST;
 import org.stringtemplate.v4.compiler.STLexer;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -122,6 +132,10 @@ public final class JadeDoc {
 				return false;
 			return true;
 		}
+	}
+
+	public JsonObject getRoot() {
+		return root;
 	}
 
 	public final String compileST(String content) {
@@ -816,9 +830,9 @@ public final class JadeDoc {
 	}
 
 	public boolean isEmpty() {
-		return this.root.entrySet().size()==0;
+		return this.root.entrySet().size() == 0;
 	}
-	
+
 	public boolean isBoolean(String pattern) throws ItemNotFoundException {
 		JsonElement el = check(pattern);
 		if (!el.isJsonPrimitive()) {
@@ -1038,12 +1052,12 @@ public final class JadeDoc {
 	}
 
 	public JsonElement get(String... pattern) {
-		if(pattern == null) {
+		if (pattern == null) {
 			return null;
 		}
-		for(String p : pattern) {
+		for (String p : pattern) {
 			JsonElement e = JPathProcessor.find(p, this.root);
-			if(e != null) {
+			if (e != null) {
 				return e;
 			}
 		}
@@ -1056,7 +1070,7 @@ public final class JadeDoc {
 		}
 		return JPathProcessor.find(pattern, this.root);
 	}
-	
+
 	public JsonElement fetch(String pattern, Map<String, Object> values) {
 		if (StringUtils.isBlank(pattern) || "*".equals(pattern)) {
 			return this.root;
@@ -1245,7 +1259,7 @@ public final class JadeDoc {
 			String content = jsonString.trim();
 			if (content.startsWith("[")) {
 				return this.fromArrayString("root", jsonString);
-			} else if ( !content.startsWith("{")) {
+			} else if (!content.startsWith("{")) {
 				JadeDoc doc = new JadeDoc(this.gson);
 				doc.add("body", jsonString);
 				return doc;
@@ -1256,6 +1270,150 @@ public final class JadeDoc {
 
 		public JadeDoc create(JsonElement jsonElement) {
 			return gson.fromJson(jsonElement, JadeDoc.class);
+		}
+
+		private JadeDoc parseNode(Node node, boolean keepNamespace) {
+			JadeDoc doc = new JadeDoc(this.gson);
+
+			String nodeName = node.getNodeName().replace(":", "_");
+			if (StringUtils.isBlank(nodeName)) {
+				return doc;
+			}
+			NamedNodeMap attrList = node.getAttributes();
+
+			if (node.hasAttributes()) {
+				for (int i = 0; i < attrList.getLength(); i++) {
+					Node attr = attrList.item(i);
+					String xn = parseNodename(attr.getNodeName(), keepNamespace);
+					doc.add(xn, attr.getNodeValue());
+				}
+			}
+
+			if (node.hasChildNodes() && node.getChildNodes().getLength() == 1
+					&& node.getFirstChild().getNodeType() == Node.TEXT_NODE) {
+				doc.add("self", node.getTextContent());
+				return doc;
+			}
+
+			NodeList nodeList = node.getChildNodes();
+
+			Map<String, List<Node>> nodes = new HashMap<>();
+			for (int i = 0; i < nodeList.getLength(); i++) {
+				Node child = nodeList.item(i);
+				if (child.getNodeType() == Node.ELEMENT_NODE) {
+					if (!child.hasAttributes() && child.hasChildNodes() && child.getChildNodes().getLength() == 1
+							&& child.getFirstChild().getNodeType() == Node.TEXT_NODE) {
+						doc.add(parseNodename(child.getNodeName(), keepNamespace), child.getTextContent());
+						continue;
+					}
+					String name = child.getNodeName();
+					List<Node> v;
+					if (nodes.containsKey(name)) {
+						v = nodes.get(name);
+					} else {
+						v = new ArrayList<>();
+						nodes.put(name, v);
+					}
+					v.add(child);
+				}
+			}
+
+			nodes.forEach((key, v) -> {
+				if (v.size() == 1) {
+					doc.add(parseNodename(key, keepNamespace), this.parseNode(v.get(0), keepNamespace));
+				} else {
+					List<JadeDoc> xs = new ArrayList<>();
+					for (Node x : v) {
+						xs.add(this.parseNode(x, keepNamespace));
+					}
+					doc.add(parseNodename(key, keepNamespace), xs);
+				}
+			});
+			return doc;
+		}
+
+		private static String parseNodename(String name, boolean keepNamespace) {
+			if (keepNamespace) {
+				return name.replace(":", "_");
+			}
+			String[] ns = name.split("\\s*:\\s*");
+			return ns[ns.length - 1];
+		}
+
+		public JadeDoc create(InputStream xmlStream, boolean keepNamespace) throws Exception {
+			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+			DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+			Document doc = dBuilder.parse(xmlStream);
+			return this.create(doc, keepNamespace);
+		}
+
+		public JadeDoc create(byte[] xmlBytes, boolean keepNamespace) throws Exception {
+			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+			DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+			Document doc = dBuilder.parse(new ByteArrayInputStream(xmlBytes));
+			return this.create(doc, keepNamespace);
+		}
+
+		public JadeDoc create(Document document, boolean keepNamespace) {
+			JadeDoc doc = new JadeDoc(this.gson);
+			Element rootElement = document.getDocumentElement();
+			rootElement.normalize();
+			String root = parseNodename(rootElement.getNodeName(), keepNamespace);
+			NamedNodeMap attrList = rootElement.getAttributes();
+
+			String content = rootElement.getTextContent();
+			if (StringUtils.isNotBlank(content)) {
+				doc.add(root, content);
+			}
+
+			if (rootElement.hasAttributes()) {
+				for (int i = 0; i < attrList.getLength(); i++) {
+					Node attr = attrList.item(i);
+					doc.add(root + "/" + parseNodename(attr.getNodeName(), keepNamespace), attr.getNodeValue());
+				}
+			}
+
+			if (rootElement.hasChildNodes() && rootElement.getChildNodes().getLength() == 1
+					&& rootElement.getFirstChild().getNodeType() == Node.TEXT_NODE) {
+				doc.add(root + "/self", rootElement.getTextContent());
+				return doc;
+			}
+			NodeList nodeList = rootElement.getChildNodes();
+
+			Map<String, List<Node>> nodes = new HashMap<>();
+			for (int i = 0; i < nodeList.getLength(); i++) {
+				Node child = nodeList.item(i);
+				if (child.getNodeType() == Node.ELEMENT_NODE) {
+					String name = parseNodename(child.getNodeName(), keepNamespace);
+					if (!child.hasAttributes() && child.hasChildNodes() && child.getChildNodes().getLength() == 1
+							&& child.getFirstChild().getNodeType() == Node.TEXT_NODE) {
+						doc.add(root + "/" + name, child.getTextContent());
+						continue;
+					}
+					List<Node> v;
+					if (nodes.containsKey(name)) {
+						v = nodes.get(name);
+					} else {
+						v = new ArrayList<>();
+						nodes.put(name, v);
+					}
+					v.add(child);
+				}
+			}
+
+			nodes.forEach((key, v) -> {
+				if (v.size() == 1) {
+					doc.add(root + "/" + parseNodename(key, keepNamespace), this.parseNode(v.get(0), keepNamespace));
+				} else {
+					List<JadeDoc> xs = new ArrayList<>();
+					for (Node x : v) {
+						xs.add(this.parseNode(x, keepNamespace));
+					}
+					doc.add(root + "/" + parseNodename(key, keepNamespace), xs);
+				}
+			});
+
+			return doc;
 		}
 
 		public JadeDoc create(Reader reader) {

@@ -26,6 +26,10 @@ import com.jade.path.JadeDoc.Builder.RegularPattern;
 import com.jade.path.JadeDoc.CompiledPattern;
 import com.jade.path.exception.ItemNotFoundException;
 import com.jade.path.processor.JPathAction;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.DocumentBuilder;
+import org.w3c.dom.Document;
 
 public class JadeDocTest {
 
@@ -584,5 +588,27 @@ public class JadeDocTest {
 		for (String x : xs) {
 			System.out.println(x);
 		}
+	}
+
+	@Test
+	public void test30() throws IOException, Exception {
+		Builder builder = JadeDoc.build();
+        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+        InputStream inputFile = this.getClass().getClassLoader().getResourceAsStream("testxml.xml");
+		Document doc = dBuilder.parse(inputFile);
+		JadeDoc model = builder.create(doc, false);
+		System.out.println(model.toJson());
+	}
+
+	@Test
+	public void test31() throws IOException, Exception {
+		Builder builder = JadeDoc.build();
+        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+        InputStream inputFile = this.getClass().getClassLoader().getResourceAsStream("employees.xml");
+		Document doc = dBuilder.parse(inputFile);
+		JadeDoc model = builder.create(doc, false);
+		System.out.println(model.toJson());
 	}
 }
