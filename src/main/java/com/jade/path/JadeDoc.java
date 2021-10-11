@@ -1,6 +1,7 @@
 package com.jade.path;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.lang.reflect.Type;
@@ -8,6 +9,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -22,6 +24,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
@@ -35,6 +38,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -377,10 +381,7 @@ public final class JadeDoc {
 			return merge(docs);
 		} else {
 			JadeDoc doc = JadeDoc.build().create();
-			List<JadeDoc> contents = new ArrayList<>();
-			for (JadeDoc v : docs) {
-				contents.add(v);
-			}
+			List<JadeDoc> contents = Arrays.asList(docs);
 			return doc.add(pattern, contents);
 		}
 	}
@@ -830,7 +831,7 @@ public final class JadeDoc {
 	}
 
 	public boolean isEmpty() {
-		return this.root.entrySet().size() == 0;
+		return this.root.entrySet().isEmpty();
 	}
 
 	public boolean isBoolean(String pattern) throws ItemNotFoundException {
@@ -1208,6 +1209,24 @@ public final class JadeDoc {
 	}
 
 	public static class Builder {
+
+		private static DocumentBuilder dBuilder;
+		static {
+			try {
+				DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+				// to be compliant, completely disable DOCTYPE declaration:
+				factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+				// or completely disable external entities declarations:
+				factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+				factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+				// or prohibit the use of all protocols by external entities:
+				factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+				factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+				dBuilder = factory.newDocumentBuilder(); // Noncompliant
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		}
 		private final Gson gson;
 
 		private Builder(GsonBuilder builder) {
@@ -1284,14 +1303,14 @@ public final class JadeDoc {
 			if (node.hasAttributes()) {
 				for (int i = 0; i < attrList.getLength(); i++) {
 					Node attr = attrList.item(i);
-					String xn = parseNodename(attr.getNodeName(), keepNamespace);
+					String xn = "attrs/" + parseNodename(attr.getNodeName(), keepNamespace);
 					doc.add(xn, attr.getNodeValue());
 				}
 			}
 
 			if (node.hasChildNodes() && node.getChildNodes().getLength() == 1
 					&& node.getFirstChild().getNodeType() == Node.TEXT_NODE) {
-				doc.add("self", node.getTextContent());
+				doc.add(nodeName + "_self", node.getTextContent());
 				return doc;
 			}
 
@@ -1340,16 +1359,12 @@ public final class JadeDoc {
 			return ns[ns.length - 1];
 		}
 
-		public JadeDoc create(InputStream xmlStream, boolean keepNamespace) throws Exception {
-			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-			DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+		public JadeDoc create(InputStream xmlStream, boolean keepNamespace) throws SAXException, IOException {
 			Document doc = dBuilder.parse(xmlStream);
 			return this.create(doc, keepNamespace);
 		}
 
-		public JadeDoc create(byte[] xmlBytes, boolean keepNamespace) throws Exception {
-			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-			DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+		public JadeDoc create(byte[] xmlBytes, boolean keepNamespace) throws SAXException, IOException {
 			Document doc = dBuilder.parse(new ByteArrayInputStream(xmlBytes));
 			return this.create(doc, keepNamespace);
 		}
@@ -1369,13 +1384,13 @@ public final class JadeDoc {
 			if (rootElement.hasAttributes()) {
 				for (int i = 0; i < attrList.getLength(); i++) {
 					Node attr = attrList.item(i);
-					doc.add(root + "/" + parseNodename(attr.getNodeName(), keepNamespace), attr.getNodeValue());
+					doc.add(root + "/attrs/" + parseNodename(attr.getNodeName(), keepNamespace), attr.getNodeValue());
 				}
 			}
 
 			if (rootElement.hasChildNodes() && rootElement.getChildNodes().getLength() == 1
 					&& rootElement.getFirstChild().getNodeType() == Node.TEXT_NODE) {
-				doc.add(root + "/self", rootElement.getTextContent());
+				doc.add(root + "/" + root + "_self", rootElement.getTextContent());
 				return doc;
 			}
 			NodeList nodeList = rootElement.getChildNodes();
