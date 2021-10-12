@@ -57,6 +57,10 @@ import com.jade.path.processor.JPathTemplate;
 
 public final class JadeDoc {
 
+	private static final JadeDoc.Builder jadeDocBuilder = JadeDoc.build();
+
+	private static final String SELF = "_self";
+	private static final String ATTRS = "attrs";
 	private static final String NAME = "name";
 	private static final String VALUE = "value";
 	private static final String S_S = "%s{%s}";
@@ -70,6 +74,24 @@ public final class JadeDoc {
 	private static final Pattern LONGPATTERN = Pattern.compile("-?\\d{11,20}");
 	private static final Pattern FLOATPATTERN = Pattern.compile("[+-]?(\\d+|\\d+\\.\\d+|\\.\\d+|\\d+\\.)([eE]\\d+)?");
 	private static final Pattern BOOLPATTERN = Pattern.compile("([tT][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee])");
+
+	private static DocumentBuilder dBuilder;
+	static {
+		try {
+			DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+			// to be compliant, completely disable DOCTYPE declaration:
+			factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+			// or completely disable external entities declarations:
+			factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+			factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+			// or prohibit the use of all protocols by external entities:
+			factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+			factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+			dBuilder = factory.newDocumentBuilder(); // Noncompliant
+		} catch (Exception ex) {
+			ex.printStackTrace();
+		}
+	}
 
 	private JadeDoc(Gson gson) {
 		this(gson, null);
@@ -1092,6 +1114,70 @@ public final class JadeDoc {
 		return this.root.toString();
 	}
 
+	private static String nodeName(String prefix, String name) {
+		if (StringUtils.isNotBlank(prefix)) {
+			return String.join(":", prefix, name);
+		}
+		return name;
+	}
+
+	private static void parse(Document document, Element node, String name, JsonElement el, String prefix) {
+		if (el.isJsonPrimitive()) {
+			Element child = document.createElement(nodeName(prefix, name));
+			child.setTextContent(el.getAsString());
+			node.appendChild(child);
+		} else if (el.isJsonObject()) {
+			Element child = document.createElement(nodeName(prefix, name));
+			node.appendChild(child);
+			JadeDoc doc = jadeDocBuilder.create(el);
+			String self = name + SELF;
+			if (doc.has(self)) {
+				child.setTextContent(doc.getAsString(self, ""));
+				if (doc.has(ATTRS)) {
+					JsonElement attrEl = doc.get(ATTRS);
+					if (attrEl != null) {
+						attrEl.getAsJsonObject().entrySet()
+								.forEach(x -> child.setAttribute(x.getKey(), x.getValue().getAsString()));
+					}
+				}
+			} else {
+				el.getAsJsonObject().entrySet().forEach(v -> {
+					String key = v.getKey();
+					if (ATTRS.equals(key)) {
+						v.getValue().getAsJsonObject().entrySet()
+								.forEach(x -> child.setAttribute(x.getKey(), x.getValue().getAsString()));
+					} else {
+						parse(document, child, v.getKey(), v.getValue(), prefix);
+					}
+				});
+			}
+		} else if (el.isJsonArray()) {
+			el.getAsJsonArray().forEach(v -> parse(document, node, name, v, prefix));
+		}
+	}
+
+	public Document toXml(String path, String prefix, Map<String, String> attrs) {
+		Document document = dBuilder.newDocument();
+		JsonElement el = this.get(path);
+		if (el == null) {
+			return null;
+		}
+		Element rootEl = document.createElement(nodeName(prefix, path));
+
+		attrs.forEach(rootEl::setAttribute);
+		document.appendChild(rootEl);
+
+		if (el.isJsonObject()) {
+			el.getAsJsonObject().entrySet().forEach(v -> parse(document, rootEl, v.getKey(), v.getValue(), prefix));
+		} else if (el.isJsonPrimitive()) {
+			rootEl.setTextContent(el.getAsString());
+		} else if (el.isJsonArray()) {
+			el.getAsJsonArray().forEach(v -> parse(document, rootEl, path, v, prefix));
+		}
+
+		return document;
+	}
+
 	public static Builder build() {
 		return new Builder();
 	}
@@ -1210,23 +1296,6 @@ public final class JadeDoc {
 
 	public static class Builder {
 
-		private static DocumentBuilder dBuilder;
-		static {
-			try {
-				DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-				// to be compliant, completely disable DOCTYPE declaration:
-				factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-				// or completely disable external entities declarations:
-				factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-				factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-				// or prohibit the use of all protocols by external entities:
-				factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-				factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-				dBuilder = factory.newDocumentBuilder(); // Noncompliant
-			} catch (Exception ex) {
-				ex.printStackTrace();
-			}
-		}
 		private final Gson gson;
 
 		private Builder(GsonBuilder builder) {
@@ -1310,7 +1379,7 @@ public final class JadeDoc {
 
 			if (node.hasChildNodes() && node.getChildNodes().getLength() == 1
 					&& node.getFirstChild().getNodeType() == Node.TEXT_NODE) {
-				doc.add(nodeName + "_self", node.getTextContent());
+				doc.add(nodeName + SELF, node.getTextContent());
 				return doc;
 			}
 
@@ -1390,7 +1459,7 @@ public final class JadeDoc {
 
 			if (rootElement.hasChildNodes() && rootElement.getChildNodes().getLength() == 1
 					&& rootElement.getFirstChild().getNodeType() == Node.TEXT_NODE) {
-				doc.add(root + "/" + root + "_self", rootElement.getTextContent());
+				doc.add(root + "/" + root + SELF, rootElement.getTextContent());
 				return doc;
 			}
 			NodeList nodeList = rootElement.getChildNodes();

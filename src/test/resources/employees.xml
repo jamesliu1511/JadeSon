@@ -1,18 +1,19 @@
-<employees>
-	<count att="4">3</count>
-    <employee id="111">
-        <firstName>Lokesh</firstName>
-        <lastName>Gupta</lastName>
-        <location>India</location>
-    </employee>
-    <employee id="222">
-        <firstName>Alex</firstName>
-        <lastName>Gussin</lastName>
-        <location>Russia</location>
-    </employee>
-    <employee id="333">
-        <firstName>David</firstName>
-        <lastName>Feezor</lastName>
-        <location>USA</location>
-    </employee>
-</employees>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<ns:employees xmlns:ns="http://thomas-bayer.com/blz/">
+	<ns:count att="4">3</ns:count>
+	<ns:employee id="111">
+		<ns:firstName>Lokesh</ns:firstName>
+		<ns:lastName>Gupta</ns:lastName>
+		<ns:location>India</ns:location>
+	</ns:employee>
+	<ns:employee id="222">
+		<ns:firstName>Alex</ns:firstName>
+		<ns:lastName>Gussin</ns:lastName>
+		<ns:location>Russia</ns:location>
+	</ns:employee>
+	<ns:employee id="333">
+		<ns:firstName>David</ns:firstName>
+		<ns:lastName>Feezor</ns:lastName>
+		<ns:location>USA</ns:location>
+	</ns:employee>
+</ns:employees>
