@@ -251,17 +251,11 @@ public final class FunctionPool {
 	}
 
 	private static final boolean fnIsNull(JsonElement el) {
-		if (el == null || el.isJsonNull()) {
-			return true;
-		}
-		return false;
+		return (el == null || el.isJsonNull());
 	}
 
 	private static final boolean fnIsNotNull(JsonElement el) {
-		if (el == null || el.isJsonNull()) {
-			return false;
-		}
-		return true;
+		return (el != null && !el.isJsonNull());
 	}
 
 	private static final boolean fnIsEmpty(JsonElement el) {
@@ -396,13 +390,13 @@ public final class FunctionPool {
 	}
 
 	private static final JsonPrimitive fromObject(Object value) {
-		if (Integer.class.isInstance(value)) {
+		if (value instanceof Integer) {
 			return new JsonPrimitive((Integer) value);
-		} else if (Double.class.isInstance(value)) {
+		} else if (value instanceof Double) {
 			return new JsonPrimitive((Double) value);
-		} else if (Boolean.class.isInstance(value)) {
+		} else if (value instanceof Boolean) {
 			return new JsonPrimitive((Boolean) value);
-		} else if (String.class.isInstance(value)) {
+		} else if (value instanceof String) {
 			return new JsonPrimitive((String) value);
 		} else {
 			return null;
