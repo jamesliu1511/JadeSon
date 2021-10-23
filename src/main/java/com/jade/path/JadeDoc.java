@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -88,6 +89,7 @@ public final class JadeDoc {
 			factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
 			factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
 			dBuilder = factory.newDocumentBuilder(); // Noncompliant
+			factory.setNamespaceAware(false);
 		} catch (Exception ex) {
 			ex.printStackTrace();
 		}
@@ -934,6 +936,21 @@ public final class JadeDoc {
 		}
 		JsonArray array = el.getAsJsonArray();
 		array.forEach(action);
+	}
+
+	public String getFirstChildName(String pattern, String defaultValue) {
+		JsonElement el = this.get(pattern);
+		if (el == null) {
+			return defaultValue;
+		}
+		if (el.isJsonObject()) {
+			Set<Entry<String, JsonElement>> vs = el.getAsJsonObject().entrySet();
+			Optional<Entry<String, JsonElement>> v = vs.stream().findFirst();
+			if (v.isPresent()) {
+				return v.get().getKey();
+			}
+		}
+		return defaultValue;
 	}
 
 	public JsonElement select(String pattern, String as) {
