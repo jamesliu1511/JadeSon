@@ -1139,15 +1139,17 @@ public final class JadeDoc {
 	}
 
 	private static void parse(Document document, Element node, String name, JsonElement el, String prefix) {
-		if (el.isJsonPrimitive()) {
+		if (ATTRS.equals(name)) {
+			el.getAsJsonObject().entrySet().forEach(x -> node.setAttribute(x.getKey(), x.getValue().getAsString()));
+		} else if (el.isJsonPrimitive()) {
 			Element child = document.createElement(nodeName(prefix, name));
 			child.setTextContent(el.getAsString());
 			node.appendChild(child);
 		} else if (el.isJsonObject()) {
-			Element child = document.createElement(nodeName(prefix, name));
-			node.appendChild(child);
 			JadeDoc doc = jadeDocBuilder.create(el);
 			String self = name + SELF;
+			Element child = document.createElement(nodeName(prefix, name));
+			node.appendChild(child);
 			if (doc.has(self)) {
 				child.setTextContent(doc.getAsString(self, ""));
 				if (doc.has(ATTRS)) {
@@ -1179,7 +1181,15 @@ public final class JadeDoc {
 		if (el == null) {
 			return null;
 		}
-		Element rootEl = document.createElement(nodeName(prefix, path));
+
+		String xPath;
+		if ("*".equals(path)) {
+			xPath = "root";
+		} else {
+			String[] paths = path.split("/");
+			xPath = paths[paths.length - 1];
+		}
+		Element rootEl = document.createElement(nodeName(prefix, xPath));
 
 		attrs.forEach(rootEl::setAttribute);
 		document.appendChild(rootEl);
