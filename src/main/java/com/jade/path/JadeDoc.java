@@ -410,7 +410,7 @@ public final class JadeDoc {
 		}
 	}
 
-	public synchronized void clear() {
+	public void clear() {
 		List<String> keys = this.root.entrySet().stream().map(Entry<String, JsonElement>::getKey)
 				.collect(Collectors.toList());
 		keys.forEach(this.root::remove);
@@ -424,9 +424,7 @@ public final class JadeDoc {
 		if (StringUtils.isBlank(name)) {
 			this.join(content);
 		} else {
-			synchronized (this) {
-				this.root.add(name, content.content());
-			}
+			this.root.add(name, content.content());
 			return this;
 		}
 		return this;
@@ -440,18 +438,14 @@ public final class JadeDoc {
 		if (StringUtils.isBlank(pattern)) {
 			this.join(contents);
 		} else if (contents.length == 1) {
-			synchronized (this) {
-				JPathTemplate.add(this.root, pattern, contents[0].content());
-			}
+			JPathTemplate.add(this.root, pattern, contents[0].content());
 			return this;
 		} else {
 			JsonArray array = new JsonArray();
 			for (JadeDoc obj : contents) {
 				array.add(obj.root);
 			}
-			synchronized (this) {
-				JPathTemplate.add(this.root, pattern, array);
-			}
+			JPathTemplate.add(this.root, pattern, array);
 		}
 		return this;
 	}
@@ -467,9 +461,7 @@ public final class JadeDoc {
 			for (JadeDoc obj : contents) {
 				array.add(obj.root.deepCopy());
 			}
-			synchronized (this) {
-				JPathTemplate.add(this.root, pattern, array);
-			}
+			JPathTemplate.add(this.root, pattern, array);
 		}
 		return this;
 	}
@@ -478,16 +470,15 @@ public final class JadeDoc {
 		if (docs == null || docs.isEmpty()) {
 			return this;
 		}
-		synchronized (this) {
-			for (JadeDoc v : docs) {
-				if (v == null || v.root == null) {
-					continue;
-				}
-				for (Entry<String, JsonElement> x : v.root.entrySet()) {
-					this.root.add(x.getKey(), x.getValue());
-				}
+		for (JadeDoc v : docs) {
+			if (v == null || v.root == null) {
+				continue;
+			}
+			for (Entry<String, JsonElement> x : v.root.entrySet()) {
+				this.root.add(x.getKey(), x.getValue());
 			}
 		}
+
 		return this;
 	}
 
@@ -516,13 +507,11 @@ public final class JadeDoc {
 		if (docs == null || docs.length < 1) {
 			return this;
 		}
-		synchronized (this) {
-			for (JadeDoc v : docs) {
-				if (v == null || v.root == null) {
-					continue;
-				}
-				merge(this.root, v.root);
+		for (JadeDoc v : docs) {
+			if (v == null || v.root == null) {
+				continue;
 			}
+			merge(this.root, v.root);
 		}
 		return this;
 	}
@@ -531,9 +520,7 @@ public final class JadeDoc {
 		if (content == null) {
 			return this;
 		}
-		synchronized (this) {
-			merge(this.root, content);
-		}
+		merge(this.root, content);
 		return this;
 	}
 
@@ -545,18 +532,14 @@ public final class JadeDoc {
 			return this;
 		}
 		if (contents.length == 1) {
-			synchronized (this) {
-				JPathTemplate.add(this.root, targetPath, contents[0]);
-			}
+			JPathTemplate.add(this.root, targetPath, contents[0]);
 			return this;
 		}
 		JsonArray array = new JsonArray();
 		for (JsonElement obj : contents) {
 			array.add(obj);
 		}
-		synchronized (this) {
-			JPathTemplate.add(this.root, targetPath, array);
-		}
+		JPathTemplate.add(this.root, targetPath, array);
 		return this;
 	}
 
@@ -567,9 +550,7 @@ public final class JadeDoc {
 		if (StringUtils.isBlank(targetPath)) {
 			return this;
 		}
-		synchronized (this) {
-			JPathTemplate.add(this.root, targetPath, content);
-		}
+		JPathTemplate.add(this.root, targetPath, content);
 		return this;
 	}
 
@@ -581,9 +562,7 @@ public final class JadeDoc {
 			return this;
 		}
 		JsonElement el = this.gson.toJsonTree(src, typeOfSrc);
-		synchronized (this) {
-			JPathTemplate.add(this.root, pattern, el);
-		}
+		JPathTemplate.add(this.root, pattern, el);
 		return this;
 	}
 
@@ -595,9 +574,7 @@ public final class JadeDoc {
 			return this;
 		}
 		JsonElement el = this.gson.toJsonTree(src);
-		synchronized (this) {
-			JPathTemplate.add(this.root, pattern, el);
-		}
+		JPathTemplate.add(this.root, pattern, el);
 		return this;
 	}
 
@@ -606,9 +583,7 @@ public final class JadeDoc {
 			return this;
 		}
 		String content = StringUtils.isBlank(element) ? "" : element;
-		synchronized (this) {
-			JPathTemplate.add(this.root, pattern, new JsonPrimitive(content));
-		}
+		JPathTemplate.add(this.root, pattern, new JsonPrimitive(content));
 		return this;
 	}
 
@@ -630,23 +605,17 @@ public final class JadeDoc {
 		for (String obj : contents) {
 			array.add(new JsonPrimitive(obj));
 		}
-		synchronized (this) {
-			JPathTemplate.add(this.root, targetPath, array);
-		}
+		JPathTemplate.add(this.root, targetPath, array);
 		return this;
 	}
 
 	public JadeDoc add(String targetPath, JsonElement source, String sourcePath, Map<String, Object> values) {
-		synchronized (this) {
-			JPathTemplate.add(this.root, targetPath, source, sourcePath, values);
-		}
+		JPathTemplate.add(this.root, targetPath, source, sourcePath, values);
 		return this;
 	}
 
 	public JadeDoc add(String targetPath, JsonElement source, String sourcePath) {
-		synchronized (this) {
-			JPathTemplate.add(this.root, targetPath, source, sourcePath);
-		}
+		JPathTemplate.add(this.root, targetPath, source, sourcePath);
 		return this;
 	}
 
@@ -654,9 +623,7 @@ public final class JadeDoc {
 		if (StringUtils.isBlank(targetPath)) {
 			return this;
 		}
-		synchronized (this) {
-			JPathAction.process(this.root, targetPath, values);
-		}
+		JPathAction.process(this.root, targetPath, values);
 		return this;
 	}
 
@@ -664,9 +631,7 @@ public final class JadeDoc {
 		if (StringUtils.isBlank(targetPath)) {
 			return this;
 		}
-		synchronized (this) {
-			JPathAction.process(this.root, targetPath);
-		}
+		JPathAction.process(this.root, targetPath);
 		return this;
 	}
 
@@ -674,10 +639,8 @@ public final class JadeDoc {
 		if (patterns == null || patterns.length < 1) {
 			return this;
 		}
-		synchronized (this) {
-			for (String pattern : patterns) {
-				JPathAction.remove(this.root, pattern);
-			}
+		for (String pattern : patterns) {
+			JPathAction.remove(this.root, pattern);
 		}
 		return this;
 	}
@@ -693,9 +656,7 @@ public final class JadeDoc {
 		for (String obj : values) {
 			array.add(new JsonPrimitive(obj));
 		}
-		synchronized (this) {
-			JPathTemplate.add(this.root, pattern, array);
-		}
+		JPathTemplate.add(this.root, pattern, array);
 		return this;
 	}
 
@@ -754,10 +715,8 @@ public final class JadeDoc {
 		if (el == null) {
 			return false;
 		} else {
-			synchronized (this) {
-				add(newName, el);
-				remove(pattern);
-			}
+			add(newName, el);
+			remove(pattern);
 			return true;
 		}
 	}
@@ -766,9 +725,7 @@ public final class JadeDoc {
 		if (StringUtils.isBlank(pattern)) {
 			return this;
 		}
-		synchronized (this) {
-			JPathTemplate.add(this.root, pattern, new JsonPrimitive(element));
-		}
+		JPathTemplate.add(this.root, pattern, new JsonPrimitive(element));
 		return this;
 	}
 
@@ -776,9 +733,7 @@ public final class JadeDoc {
 		if (StringUtils.isBlank(pattern)) {
 			return this;
 		}
-		synchronized (this) {
-			JPathTemplate.add(this.root, pattern, new JsonPrimitive(element));
-		}
+		JPathTemplate.add(this.root, pattern, new JsonPrimitive(element));
 		return this;
 	}
 
@@ -786,9 +741,7 @@ public final class JadeDoc {
 		if (StringUtils.isBlank(pattern)) {
 			return this;
 		}
-		synchronized (this) {
-			JPathTemplate.add(this.root, pattern, element);
-		}
+		JPathTemplate.add(this.root, pattern, element);
 		return this;
 	}
 
@@ -796,9 +749,7 @@ public final class JadeDoc {
 		if (StringUtils.isBlank(pattern)) {
 			return this;
 		}
-		synchronized (this) {
-			JPathTemplate.add(this.root, pattern, new JsonPrimitive(element));
-		}
+		JPathTemplate.add(this.root, pattern, new JsonPrimitive(element));
 		return this;
 	}
 
