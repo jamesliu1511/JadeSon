@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.Test;
 
+import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -31,7 +32,7 @@ import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.DocumentBuilder;
 import org.w3c.dom.Document;
 
-public class JadeDocTest {
+class JadeDocTest {
 
 	private String read(String file) throws IOException {
 		InputStream in = this.getClass().getClassLoader().getResourceAsStream(file);
@@ -47,9 +48,17 @@ public class JadeDocTest {
 		}
 		return out.toString();
 	}
-
+	
 	@Test
-	public void testCompileFunction() throws IOException {
+	void testSerialize() throws IOException {
+		JadeDoc doc = JadeDoc.build().create();
+		doc.add("test", 123);
+		Integer x = doc.fromJson("test", Integer.class);
+		System.out.println(x);
+	}
+	
+	@Test
+	void testCompileFunction() throws IOException {
 		JadeDoc doc = JadeDoc.build().create(read("test2.json"));
 		System.out.println(doc.fetch("properties[fn:equal(@name,'isName')]/*[0]"));
 		CompiledPattern compiledPattern = new CompiledPattern(

@@ -112,6 +112,10 @@ public final class JadeDoc {
 		return gson.fromJson(this.toJson(), classOfT);
 	}
 
+	public <T> T fromJson(String pattern, Class<T> classOfT) {
+		return gson.fromJson(this.get(pattern), classOfT);
+	}
+
 	private static class STObject extends AbstractMap<String, Object> {
 		private JadeDoc root;
 
