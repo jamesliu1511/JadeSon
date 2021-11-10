@@ -1494,6 +1494,9 @@ public final class JadeDoc {
 			if (object == null) {
 				return null;
 			}
+			if(object instanceof String) {
+				return this.create(object.toString());
+			}
 			return gson.fromJson(gson.toJson(object), JadeDoc.class);
 		}
 
