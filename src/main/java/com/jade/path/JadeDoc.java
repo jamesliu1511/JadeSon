@@ -305,10 +305,8 @@ public final class JadeDoc {
 				if (matcher.matches()) {
 					String path = matcher.group(NAME);
 					value = doc.getAsString(path, matcher.group(VALUE));
-				} else {
-					value = doc.getAsString(v);
+					key = key.replace(String.format(S_S, this.prefix, v), value);
 				}
-				key = key.replace(String.format(S_S, this.prefix, v), value);
 			}
 			return key;
 		}
@@ -324,10 +322,8 @@ public final class JadeDoc {
 				if (matcher.matches()) {
 					String path = matcher.group(NAME);
 					value = doc.getAsString(path, matcher.group(VALUE));
-				} else {
-					value = doc.getAsString(v, "NULL");
-				}
-				key = key.replace(String.format(S_S, this.prefix, v), value);
+					key = key.replace(String.format(S_S, this.prefix, v), value);
+				} 
 			}
 			return key;
 		}
