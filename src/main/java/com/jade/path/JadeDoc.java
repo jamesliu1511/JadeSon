@@ -305,8 +305,10 @@ public final class JadeDoc {
 				if (matcher.matches()) {
 					String path = matcher.group(NAME);
 					value = doc.getAsString(path, matcher.group(VALUE));
-					key = key.replace(String.format(S_S, this.prefix, v), value);
+				} else {
+					value = doc.getAsString(v);
 				}
+				key = key.replace(String.format(S_S, this.prefix, v), value);
 			}
 			return key;
 		}
@@ -322,8 +324,10 @@ public final class JadeDoc {
 				if (matcher.matches()) {
 					String path = matcher.group(NAME);
 					value = doc.getAsString(path, matcher.group(VALUE));
-					key = key.replace(String.format(S_S, this.prefix, v), value);
-				} 
+				} else {
+					value = doc.getAsString(v, v);
+				}
+				key = key.replace(String.format(S_S, this.prefix, v), value);
 			}
 			return key;
 		}
@@ -411,8 +415,7 @@ public final class JadeDoc {
 	}
 
 	public void clear() {
-		List<String> keys = this.root.entrySet().stream().map(Entry<String, JsonElement>::getKey)
-				.collect(Collectors.toList());
+		List<String> keys = this.root.entrySet().stream().map(Entry<String, JsonElement>::getKey).toList();
 		keys.forEach(this.root::remove);
 	}
 
