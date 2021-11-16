@@ -1,16 +1,27 @@
 package com.jade.path;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.ParseException;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.OffsetTime;
+import java.time.YearMonth;
+import java.time.ZonedDateTime;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -23,11 +34,11 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 import org.antlr.runtime.Token;
 import org.antlr.runtime.TokenStream;
@@ -39,7 +50,6 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -76,23 +86,18 @@ public final class JadeDoc {
 	private static final Pattern FLOATPATTERN = Pattern.compile("[+-]?(\\d+|\\d+\\.\\d+|\\.\\d+|\\d+\\.)([eE]\\d+)?");
 	private static final Pattern BOOLPATTERN = Pattern.compile("([tT][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee])");
 
-	private static DocumentBuilder dBuilder;
-	static {
-		try {
-			DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-			// to be compliant, completely disable DOCTYPE declaration:
-			factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-			// or completely disable external entities declarations:
-			factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-			factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-			// or prohibit the use of all protocols by external entities:
-			factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-			factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
-			dBuilder = factory.newDocumentBuilder(); // Noncompliant
-			factory.setNamespaceAware(false);
-		} catch (Exception ex) {
-			ex.printStackTrace();
-		}
+	private static final DocumentBuilder createDocumentBuilder() throws ParserConfigurationException {
+		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+//		// to be compliant, completely disable DOCTYPE declaration:
+//		factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+//		// or completely disable external entities declarations:
+//		factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+//		factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+//		// or prohibit the use of all protocols by external entities:
+		factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+		factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+		factory.setNamespaceAware(false);
+		return factory.newDocumentBuilder(); // Noncompliant
 	}
 
 	private JadeDoc(Gson gson) {
@@ -113,7 +118,11 @@ public final class JadeDoc {
 	}
 
 	public <T> T fromJson(String pattern, Class<T> classOfT) {
-		return gson.fromJson(this.get(pattern), classOfT);
+		JsonElement content = this.get(pattern);
+		if (content == null) {
+			return null;
+		}
+		return gson.fromJson(content.getAsString(), classOfT);
 	}
 
 	private static class STObject extends AbstractMap<String, Object> {
@@ -798,14 +807,125 @@ public final class JadeDoc {
 		return el.getAsDouble();
 	}
 
+	public float getAsFloat(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return el.getAsFloat();
+	}
+
 	public boolean getAsBoolean(String pattern) throws ItemNotFoundException {
 		JsonElement el = check(pattern);
 		return el.getAsBoolean();
 	}
 
+	public byte getAsByte(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return el.getAsByte();
+	}
+
+	public char getAsChar(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return el.getAsCharacter();
+	}
+
+	public BigDecimal getAsBigDecimal(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return el.getAsBigDecimal();
+	}
+
+	public Date getAsDate(String pattern) throws ItemNotFoundException, ParseException {
+		JsonElement el = check(pattern);
+		return DateFormat.getDateInstance().parse(el.getAsString());
+	}
+
+	public Instant getAsInstant(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return Instant.parse(el.getAsString());
+	}
+
+	public LocalDateTime getAsLocalDateTime(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return LocalDateTime.parse(el.getAsString());
+	}
+
+	public LocalDate getAsLocalDate(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return LocalDate.parse(el.getAsString());
+	}
+
+	public OffsetDateTime getAsOffsetDateTime(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return OffsetDateTime.parse(el.getAsString());
+	}
+
+	public OffsetTime getAsOffsetTime(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return OffsetTime.parse(el.getAsString());
+	}
+
+	public ZonedDateTime getAsZonedDateTime(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return ZonedDateTime.parse(el.getAsString());
+	}
+
+	public Timestamp getAsTimestamp(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return Timestamp.valueOf(el.getAsString());
+	}
+
+	public Time getAsTime(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return Time.valueOf(el.getAsString());
+	}
+
+	public YearMonth getAsYearMonth(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return YearMonth.parse(el.getAsString());
+	}
+
 	public Number getAsNumber(String pattern) throws ItemNotFoundException {
 		JsonElement el = check(pattern);
 		return el.getAsNumber();
+	}
+
+	public Object getObject(String name, Class<?> cls) throws ItemNotFoundException, ParseException {
+		if (cls == int.class || cls == Integer.class) {
+			return this.getAsInt(name);
+		} else if (cls == long.class || cls == Long.class) {
+			return this.getAsLong(name);
+		} else if (cls == float.class || cls == Float.class) {
+			return this.getAsFloat(name);
+		} else if (cls == double.class || cls == Double.class) {
+			return this.getAsDouble(name);
+		} else if (cls == boolean.class || cls == Boolean.class) {
+			return this.getAsBoolean(name);
+		} else if (cls == byte.class || cls == Byte.class) {
+			return this.getAsByte(name);
+		} else if (cls == String.class) {
+			return this.getAsString(name);
+		} else if (cls == BigDecimal.class) {
+			return this.getAsBigDecimal(name);
+		} else if (cls == Date.class) {
+			return this.getAsDate(name);
+		} else if (cls == Instant.class) {
+			return this.getAsInstant(name);
+		} else if (cls == LocalDateTime.class) {
+			return this.getAsLocalDateTime(name);
+		} else if (cls == LocalDate.class) {
+			return this.getAsLocalDate(name);
+		} else if (cls == OffsetDateTime.class) {
+			return this.getAsOffsetDateTime(name);
+		} else if (cls == OffsetTime.class) {
+			return this.getAsOffsetTime(name);
+		} else if (cls == ZonedDateTime.class) {
+			return this.getAsZonedDateTime(name);
+		} else if (cls == Timestamp.class) {
+			return this.getAsTimestamp(name);
+		} else if (cls == Time.class) {
+			return this.getAsTime(name);
+		} else if (cls == YearMonth.class) {
+			return this.getAsYearMonth(name);
+		}
+		return this.fromJson(name, cls);
 	}
 
 	public boolean isEmpty() {
@@ -1129,8 +1249,8 @@ public final class JadeDoc {
 		}
 	}
 
-	public Document toXml(String path, String prefix, Map<String, String> attrs) {
-		Document document = dBuilder.newDocument();
+	public Document toXml(String path, String prefix, Map<String, String> attrs) throws ParserConfigurationException {
+		Document document = createDocumentBuilder().newDocument();
 		JsonElement el = this.get(path);
 		if (el == null) {
 			return null;
@@ -1409,13 +1529,13 @@ public final class JadeDoc {
 			return ns[ns.length - 1];
 		}
 
-		public JadeDoc create(InputStream xmlStream, boolean keepNamespace) throws SAXException, IOException {
-			Document doc = dBuilder.parse(xmlStream);
+		public JadeDoc create(InputStream xmlStream, boolean keepNamespace) throws Exception {
+			Document doc = createDocumentBuilder().parse(xmlStream);
 			return this.create(doc, keepNamespace);
 		}
 
-		public JadeDoc create(byte[] xmlBytes, boolean keepNamespace) throws SAXException, IOException {
-			Document doc = dBuilder.parse(new ByteArrayInputStream(xmlBytes));
+		public JadeDoc create(byte[] xmlBytes, boolean keepNamespace) throws Exception {
+			Document doc = createDocumentBuilder().parse(new ByteArrayInputStream(xmlBytes));
 			return this.create(doc, keepNamespace);
 		}
 
@@ -1493,7 +1613,7 @@ public final class JadeDoc {
 			if (object == null) {
 				return null;
 			}
-			if(object instanceof String) {
+			if (object instanceof String) {
 				return this.create(object.toString());
 			}
 			return gson.fromJson(gson.toJson(object), JadeDoc.class);
