@@ -1007,7 +1007,7 @@ public final class JadeDoc {
 	}
 
 	public void forEach(BiConsumer<String, JsonElement> action) {
-		this.root.entrySet().forEach(v->action.accept(v.getKey(), v.getValue()));
+		this.root.entrySet().forEach(v -> action.accept(v.getKey(), v.getValue()));
 	}
 
 	public void forEachX(String arrayPattern, Consumer<JsonElement> action) {
@@ -1627,6 +1627,16 @@ public final class JadeDoc {
 				return this.create(object.toString());
 			}
 			return gson.fromJson(gson.toJson(object), JadeDoc.class);
+		}
+
+		public JadeDoc create(Object object, Class<?> cls) {
+			if (object == null) {
+				return null;
+			}
+			if (object instanceof String) {
+				return this.create(object.toString());
+			}
+			return gson.fromJson(gson.toJson(object, cls), JadeDoc.class);
 		}
 
 		public JadeDoc create(JadeDoc model) {

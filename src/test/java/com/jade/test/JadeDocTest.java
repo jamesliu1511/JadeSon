@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringReader;
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -14,7 +15,11 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
 import org.junit.jupiter.api.Test;
+import org.w3c.dom.Document;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -26,11 +31,6 @@ import com.jade.path.JadeDoc.Builder;
 import com.jade.path.JadeDoc.Builder.RegularPattern;
 import com.jade.path.JadeDoc.CompiledPattern;
 import com.jade.path.exception.ItemNotFoundException;
-import com.jade.path.processor.JPathAction;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.DocumentBuilder;
-import org.w3c.dom.Document;
 
 class JadeDocTest {
 
