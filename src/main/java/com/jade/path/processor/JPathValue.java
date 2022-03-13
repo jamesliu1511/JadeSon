@@ -158,7 +158,7 @@ public class JPathValue extends JsonElement {
 
 	@Override
 	public char getAsCharacter() {
-		return this.content.getAsCharacter();
+		return this.content.getAsString().charAt(0);
 	}
 
 	@Override

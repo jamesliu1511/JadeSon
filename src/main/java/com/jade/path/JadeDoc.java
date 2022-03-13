@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Dictionary;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -635,6 +637,42 @@ public final class JadeDoc {
 		return this;
 	}
 
+	public JadeDoc add(String pattern, Number[] bs) {
+		if (StringUtils.isBlank(pattern)) {
+			return this;
+		}
+		JsonArray js = new JsonArray();
+		for (int i = 0; i < bs.length; i++) {
+			js.add(new JsonPrimitive(bs[i]));
+		}
+		JPathTemplate.add(this.root, pattern, js);
+		return this;
+	}
+
+	public JadeDoc add(String pattern, char[] bs) {
+		if (StringUtils.isBlank(pattern)) {
+			return this;
+		}
+		JsonArray js = new JsonArray();
+		for (int i = 0; i < bs.length; i++) {
+			js.add(new JsonPrimitive(bs[i]));
+		}
+		JPathTemplate.add(this.root, pattern, js);
+		return this;
+	}
+
+	public JadeDoc add(String pattern, byte[] bs) {
+		if (StringUtils.isBlank(pattern)) {
+			return this;
+		}
+		JsonArray js = new JsonArray();
+		for (int i = 0; i < bs.length; i++) {
+			js.add(new JsonPrimitive(bs[i]));
+		}
+		JPathTemplate.add(this.root, pattern, js);
+		return this;
+	}
+
 	public JadeDoc add(String targetPath, String... contents) {
 		if (contents == null || contents.length < 1) {
 			return this;
@@ -858,9 +896,23 @@ public final class JadeDoc {
 		return el.getAsByte();
 	}
 
+	public Number[] getAsNumbers(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		List<Number> lst = new ArrayList<>();
+		el.getAsJsonArray().forEach(v -> lst.add(v.getAsNumber()));
+		return lst.toArray(new Number[0]);
+	}
+
+	public Byte[] getAsBytes(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		List<Byte> lst = new ArrayList<>();
+		el.getAsJsonArray().forEach(v -> lst.add(v.getAsByte()));
+		return lst.toArray(new Byte[0]);
+	}
+
 	public char getAsChar(String pattern) throws ItemNotFoundException {
 		JsonElement el = check(pattern);
-		return el.getAsCharacter();
+		return el.getAsString().charAt(0);
 	}
 
 	public BigDecimal getAsBigDecimal(String pattern) throws ItemNotFoundException {
@@ -1438,6 +1490,18 @@ public final class JadeDoc {
 
 		public JadeDoc create() {
 			return new JadeDoc(this.gson);
+		}
+		
+		public JadeDoc create(Dictionary<String, Object> values) {
+			JadeDoc doc = new JadeDoc(this.gson);
+			
+			Enumeration<String> e = values.keys();
+	        while(e.hasMoreElements()) {
+	            String key = e.nextElement();
+	            doc.addObject(key, values.get(key));
+	        }
+			
+			return doc;
 		}
 
 		public JadeDoc create(JsonObject jsonObject) {
