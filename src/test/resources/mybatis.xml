@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jade.mybatis.mapper.FilmMapper">
+  <select id="selectByExample" parameterType="com.jade.mybatis.model.FilmExample" resultMap="BaseResultMap">
+    select
+    <if test="distinct">
+      distinct
+    </if>
+    <include refid="Base_Column_List" />
+    from film A
+    <if test="_parameter != null">
+      <include refid="Example_Where_Clause" />
+    </if>
+    <if test="orderByClause != null">
+      order by ${orderByClause}
+    </if>
+  </select>
+  <insert id="upsertListOfFilm" parameterType="list">
+    INSERT INTO  film(film_id,special_features,rental_duration,rental_rate,release_year,length,replacement_cost,rating,description,language_id,title,original_language_id,last_update,fulltext) VALUES
+    <foreach collection="list" item="item" separator=" , ">
+      (#{item.filmId,jdbcType=INTEGER},#{item.specialFeatures,jdbcType=ARRAY},#{item.rentalDuration,jdbcType=SMALLINT},#{item.rentalRate,jdbcType=NUMERIC},#{item.releaseYear,jdbcType=DISTINCT},#{item.length,jdbcType=SMALLINT},#{item.replacementCost,jdbcType=NUMERIC},#{item.rating,jdbcType=VARCHAR},#{item.description,jdbcType=VARCHAR},#{item.languageId,jdbcType=SMALLINT},#{item.title,jdbcType=VARCHAR},#{item.originalLanguageId,jdbcType=SMALLINT},#{item.lastUpdate,jdbcType=TIMESTAMP},#{item.fulltext,jdbcType=OTHER})
+    </foreach>
+    ON CONSTRAINT film_pkey
+    DO UPDATE SET special_features=EXCLUDED.special_features,rental_duration=EXCLUDED.rental_duration,rental_rate=EXCLUDED.rental_rate,release_year=EXCLUDED.release_year,length=EXCLUDED.length,replacement_cost=EXCLUDED.replacement_cost,rating=EXCLUDED.rating,description=EXCLUDED.description,language_id=EXCLUDED.language_id,title=EXCLUDED.title,original_language_id=EXCLUDED.original_language_id,last_update=EXCLUDED.last_update,fulltext=EXCLUDED.fulltext WHERE film_id=EXCLUDED.film_id
+    RETURNING *
+  </insert>
+</mapper>

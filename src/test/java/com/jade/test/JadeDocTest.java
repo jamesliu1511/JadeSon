@@ -7,7 +7,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringReader;
-import java.io.UnsupportedEncodingException;
+import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -15,13 +15,15 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -30,6 +32,7 @@ import com.jade.path.JadeDoc;
 import com.jade.path.JadeDoc.Builder;
 import com.jade.path.JadeDoc.Builder.RegularPattern;
 import com.jade.path.JadeDoc.CompiledPattern;
+import com.jade.path.XmlParser;
 import com.jade.path.exception.ItemNotFoundException;
 
 class JadeDocTest {
@@ -48,7 +51,7 @@ class JadeDocTest {
 		}
 		return out.toString();
 	}
-	
+
 	@Test
 	void testSerialize() throws IOException {
 		JadeDoc doc = JadeDoc.build().create();
@@ -56,7 +59,7 @@ class JadeDocTest {
 		Integer x = doc.fromJson("test", Integer.class);
 		System.out.println(x);
 	}
-	
+
 	@Test
 	void testCompileFunction() throws IOException {
 		JadeDoc doc = JadeDoc.build().create(read("test2.json"));
@@ -87,7 +90,7 @@ class JadeDocTest {
 		JsonElement el = doc.fetch("payload/resource/properties[ft:json(@name,@values)]");
 		System.out.println(el.toString());
 	}
-	
+
 	@Test
 	public void testRegex() {
 		Pattern JSONKEY = Pattern.compile("(?<path>\\S+)\\-\\{(?<index>\\d+)(,(?<row>\\d+))?(,(?<col>\\d+))?\\}");
@@ -494,8 +497,7 @@ class JadeDocTest {
 		System.out.println(model.toJson());
 
 		JadeDoc doc = model.queryBuilder().where("id==1").select("resource/a", "page/page1")
-				.select("resource/b", "rs/b").union("id==2").select("resource/c", "abc").build()
-				.query(null);
+				.select("resource/b", "rs/b").union("id==2").select("resource/c", "abc").build().query(null);
 		System.out.println(doc.toJson());
 	}
 
@@ -591,7 +593,7 @@ class JadeDocTest {
 	public void test29() throws IOException {
 		Builder builder = JadeDoc.build();
 		JadeDoc model = builder.create(read("test4.json"));
-		JadeDoc.CompiledPattern fs = new JadeDoc.CompiledPattern("key-@{name}_@{Ids}_v2")  ;
+		JadeDoc.CompiledPattern fs = new JadeDoc.CompiledPattern("key-@{name}_@{Ids}_v2");
 
 		List<String> xs = fs.compileXs(model);
 		for (String x : xs) {
@@ -602,22 +604,38 @@ class JadeDocTest {
 	@Test
 	public void test30() throws IOException, Exception {
 		Builder builder = JadeDoc.build();
-        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-        InputStream inputFile = this.getClass().getClassLoader().getResourceAsStream("testxml.xml");
-		Document doc = dBuilder.parse(inputFile);
-		JadeDoc model = builder.create(doc, false);
+		InputStream inputFile = this.getClass().getClassLoader().getResourceAsStream("testxml.xml");
+		JadeDoc model = builder.createFromXml(inputFile);
 		System.out.println(model.toJson());
 	}
 
 	@Test
 	public void test31() throws IOException, Exception {
 		Builder builder = JadeDoc.build();
-        DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
-        InputStream inputFile = this.getClass().getClassLoader().getResourceAsStream("employees.xml");
-		Document doc = dBuilder.parse(inputFile);
-		JadeDoc model = builder.create(doc, false);
+		InputStream inputFile = this.getClass().getClassLoader().getResourceAsStream("employees.xml");
+		JadeDoc model = builder.createFromXml(inputFile);
 		System.out.println(model.toJson());
+	}
+
+	public static String documentToString(Document document) {
+		try {
+			TransformerFactory tf = TransformerFactory.newInstance();
+			Transformer trans = tf.newTransformer();
+			StringWriter sw = new StringWriter();
+			trans.transform(new DOMSource(document), new StreamResult(sw));
+			return sw.toString();
+		} catch (TransformerException tEx) {
+			tEx.printStackTrace();
+		}
+		return null;
+	}
+
+	@Test
+	public void test33() throws IOException, Exception {
+		InputStream inputFile = this.getClass().getClassLoader().getResourceAsStream("mybatis.xml");
+		JadeDoc doc = XmlParser.parse(new InputStreamReader(inputFile));
+		var str = documentToString(doc.toXml());
+
+		System.out.println(str);
 	}
 }

@@ -2,6 +2,7 @@ package com.jade.path;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
@@ -53,6 +54,7 @@ import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
+import org.w3c.dom.Text;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -71,10 +73,7 @@ import com.jade.path.processor.JPathTemplate;
 
 public final class JadeDoc {
 
-	private static final JadeDoc.Builder jadeDocBuilder = JadeDoc.build();
-
 	private static final String SELF = "_self";
-	private static final String ATTRS = "attrs";
 	private static final String NAME = "name";
 	private static final String VALUE = "value";
 	private static final String S_S = "%s{%s}";
@@ -82,6 +81,8 @@ public final class JadeDoc {
 	private final JsonObject root;
 
 	private static final Pattern HASDEFAULT = Pattern.compile("(?<name>.+):#(?<value>.*)");
+	private static final Pattern ARRAYTYPE = Pattern.compile("array<(?<name>.+)>");
+	private static final Pattern LISTTYPE = Pattern.compile("list<(?<name>.+)>");
 	private static final String KEYPATTERN = "%s\\{(?<name>[^\\{\\}]+)\\}";
 	private static final Pattern GATHERPATTERN = Pattern.compile("\\(\\?<(?<name>[A-Za-z0-9$]+)>");
 	private static final Pattern INTPATTERN = Pattern.compile("-?\\d{1,10}");
@@ -93,7 +94,10 @@ public final class JadeDoc {
 		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 		factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
 		factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+		factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
 		factory.setNamespaceAware(false);
+		factory.setExpandEntityReferences(false);
+
 		return factory.newDocumentBuilder(); // Noncompliant
 	}
 
@@ -101,6 +105,147 @@ public final class JadeDoc {
 	public interface JadeDocFunction<T, R> {
 		R apply(T t) throws ItemNotFoundException;
 	}
+
+	public static int getAsInt(JsonElement el) {
+		return el.getAsInt();
+	}
+
+	public static long getAsLong(JsonElement el) {
+		return el.getAsLong();
+	}
+
+	public static String getAsString(JsonElement el) {
+		return el.getAsString();
+	}
+
+	public static double getAsDouble(JsonElement el) {
+		return el.getAsDouble();
+	}
+
+	public static float getAsFloat(JsonElement el) {
+		return el.getAsFloat();
+	}
+
+	public static boolean getAsBoolean(JsonElement el) {
+		return el.getAsBoolean();
+	}
+
+	public static byte getAsByte(JsonElement el) {
+		return el.getAsByte();
+	}
+
+	public static char getAsChar(JsonElement el) {
+		return el.getAsString().charAt(0);
+	}
+
+	public static BigDecimal getAsBigDecimal(JsonElement el) {
+		return el.getAsBigDecimal();
+	}
+
+	public static Date getAsDate(JsonElement el) {
+		try {
+			return DateFormat.getDateInstance().parse(el.getAsString());
+		} catch (ParseException e) {
+			return null;
+		}
+	}
+
+	public static Instant getAsInstant(JsonElement el) {
+
+		return Instant.parse(el.getAsString());
+	}
+
+	public static LocalDateTime getAsLocalDateTime(JsonElement el) {
+
+		return LocalDateTime.parse(el.getAsString());
+	}
+
+	public static LocalDate getAsLocalDate(JsonElement el) {
+
+		return LocalDate.parse(el.getAsString());
+	}
+
+	public static OffsetDateTime getAsOffsetDateTime(JsonElement el) {
+
+		return OffsetDateTime.parse(el.getAsString());
+	}
+
+	public static OffsetTime getAsOffsetTime(JsonElement el) {
+
+		return OffsetTime.parse(el.getAsString());
+	}
+
+	public static ZonedDateTime getAsZonedDateTime(JsonElement el) {
+
+		return ZonedDateTime.parse(el.getAsString());
+	}
+
+	public static Timestamp getAsTimestamp(JsonElement el) {
+
+		return Timestamp.valueOf(el.getAsString());
+	}
+
+	public static Time getAsTime(JsonElement el) {
+
+		return Time.valueOf(el.getAsString());
+	}
+
+	public static YearMonth getAsYearMonth(JsonElement el) {
+
+		return YearMonth.parse(el.getAsString());
+	}
+
+	public static Number getAsNumber(JsonElement el) {
+
+		return el.getAsNumber();
+	}
+
+	private final Map<Class<?>, JadeDocFunction<JsonElement, Object>> getJsonElementAsFuns = Map.ofEntries(
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(int.class, JadeDoc::getAsInt),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Integer.class,
+					JadeDoc::getAsInt),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(long.class, JadeDoc::getAsLong),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Long.class, JadeDoc::getAsLong),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(float.class,
+					JadeDoc::getAsFloat),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Float.class,
+					JadeDoc::getAsFloat),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(double.class,
+					JadeDoc::getAsDouble),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Double.class,
+					JadeDoc::getAsDouble),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(boolean.class,
+					JadeDoc::getAsBoolean),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Boolean.class,
+					JadeDoc::getAsBoolean),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(byte.class, JadeDoc::getAsByte),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Byte.class, JadeDoc::getAsByte),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(char.class, JadeDoc::getAsChar),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Character.class,
+					JadeDoc::getAsChar),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(String.class,
+					JadeDoc::getAsString),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(BigDecimal.class,
+					JadeDoc::getAsBigDecimal),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Instant.class,
+					JadeDoc::getAsInstant),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(LocalDateTime.class,
+					JadeDoc::getAsLocalDateTime),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(LocalDate.class,
+					JadeDoc::getAsLocalDate),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(OffsetDateTime.class,
+					JadeDoc::getAsOffsetDateTime),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(OffsetTime.class,
+					JadeDoc::getAsOffsetTime),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(ZonedDateTime.class,
+					JadeDoc::getAsZonedDateTime),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Timestamp.class,
+					JadeDoc::getAsTimestamp),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Time.class, JadeDoc::getAsTime),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(YearMonth.class,
+					JadeDoc::getAsYearMonth),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Number.class,
+					JadeDoc::getAsNumber));
 
 	private final Map<Class<?>, JadeDocFunction<String, Object>> getAsFuns = Map.ofEntries(
 			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<String, Object>>(int.class, this::getAsInt),
@@ -137,6 +282,61 @@ public final class JadeDoc {
 			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<String, Object>>(YearMonth.class,
 					this::getAsYearMonth),
 			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<String, Object>>(Number.class, this::getAsNumber));
+
+	private final Map<String, Class<?>> simpleTypes = Map.ofEntries(
+			new AbstractMap.SimpleEntry<String, Class<?>>("int", Integer.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("integer", Integer.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("long", Long.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("float", Float.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("double", Double.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("boolean", Boolean.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("byte", Byte.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("char", Character.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("character", Character.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("string", String.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("decimal", BigDecimal.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("bigdecimal", BigDecimal.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("instant", Instant.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("localdatetime", LocalDateTime.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("datetime", LocalDateTime.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("date", LocalDate.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("localdate", LocalDate.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("offsetdatetime", OffsetDateTime.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("offsettime", OffsetTime.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("zoneddatetime", ZonedDateTime.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("timestamp", Timestamp.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("time", Time.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("yearmonth", YearMonth.class),
+			new AbstractMap.SimpleEntry<String, Class<?>>("number", Number.class));
+
+	private final Map<String, JadeDocFunction<String, Object>> getStrAsFuns = Map.ofEntries(
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("int", this::getAsInt),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("integer", this::getAsInt),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("long", this::getAsLong),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("float", this::getAsFloat),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("double", this::getAsDouble),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("boolean", this::getAsBoolean),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("byte", this::getAsByte),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("char", this::getAsChar),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("character", this::getAsChar),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("string", this::getAsString),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("decimal", this::getAsBigDecimal),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("bigdecimal", this::getAsBigDecimal),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("instant", this::getAsInstant),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("localdatetime",
+					this::getAsLocalDateTime),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("datetime", this::getAsLocalDateTime),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("date", this::getAsLocalDate),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("localdate", this::getAsLocalDate),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("offsetdatetime",
+					this::getAsOffsetDateTime),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("offsettime", this::getAsOffsetTime),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("zoneddatetime",
+					this::getAsZonedDateTime),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("timestamp", this::getAsTimestamp),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("time", this::getAsTime),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("yearmonth", this::getAsYearMonth),
+			new AbstractMap.SimpleEntry<String, JadeDocFunction<String, Object>>("number", this::getAsNumber));
 
 	private JadeDoc(Gson gson) {
 		this(gson, null);
@@ -866,6 +1066,47 @@ public final class JadeDoc {
 		return el.getAsString();
 	}
 
+	@SuppressWarnings("unchecked")
+	public <T> T[] getAsArray(String pattern, Class<T> requiredType) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		List<T> result = new ArrayList<>();
+
+		if (el.isJsonArray()) {
+			el.getAsJsonArray().forEach(v -> {
+				Object x;
+				try {
+					x = this.getJsonElementAsFuns.get(requiredType).apply(v);
+					result.add((T) x);
+				} catch (ItemNotFoundException e) {
+				}
+			});
+		}
+
+		return (T[]) result.toArray();
+	}
+
+	@SuppressWarnings("unchecked")
+	public <T> List<T> getAsList(String pattern, Class<T> requiredType) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		List<T> result = new ArrayList<>();
+
+		if (el.isJsonArray()) {
+			el.getAsJsonArray().forEach(v -> {
+				try {
+					var x = this.getJsonElementAsFuns.get(requiredType).apply(v);
+					result.add((T) x);
+				} catch (ItemNotFoundException e) {
+				}
+
+			});
+		} else {
+			var x = this.getJsonElementAsFuns.get(requiredType).apply(el);
+			result.add((T) x);
+		}
+
+		return result;
+	}
+
 	public long getAsLong(String pattern) throws ItemNotFoundException {
 		JsonElement el = check(pattern);
 		return el.getAsLong();
@@ -983,7 +1224,29 @@ public final class JadeDoc {
 		if (this.getAsFuns.containsKey(cls)) {
 			return this.getAsFuns.get(cls).apply(name);
 		}
+
 		return this.fromJson(name, cls);
+	}
+
+	public Object getObject(String name, String type) throws ItemNotFoundException, ClassNotFoundException {
+		String xType = type.toLowerCase();
+		if (this.getStrAsFuns.containsKey(xType)) {
+			return this.getStrAsFuns.get(xType).apply(name);
+		}
+
+		Matcher match = ARRAYTYPE.matcher(xType);
+		if (match.find()) {
+			var t = match.group(NAME);
+			return this.getAsArray(name, this.simpleTypes.get(t));
+		}
+
+		match = LISTTYPE.matcher(xType);
+		if (match.find()) {
+			var t = match.group(NAME);
+			return this.getAsList(name, this.simpleTypes.get(t));
+		}
+
+		return this.fromJson(name, Class.forName(type));
 	}
 
 	public boolean isEmpty() {
@@ -1275,39 +1538,21 @@ public final class JadeDoc {
 	}
 
 	private static void parse(Document document, Element node, String name, JsonElement el, String prefix) {
-		if (ATTRS.equals(name)) {
+		if ("_".equals(name)) {
 			el.getAsJsonObject().entrySet().forEach(x -> node.setAttribute(x.getKey(), x.getValue().getAsString()));
-		} else if (el.isJsonPrimitive()) {
-			Element child = document.createElement(nodeName(prefix, name));
-			child.setTextContent(el.getAsString());
-			node.appendChild(child);
+		} else if ("@".equals(name)) {
+			Text textNode = document.createTextNode(el.getAsString());
+			node.appendChild(textNode);
+		} else if ("$".equals(name)) {
+			el.getAsJsonArray().forEach(v -> parse(document, node, "", v, prefix));
 		} else if (el.isJsonObject()) {
-			JadeDoc doc = jadeDocBuilder.create(el);
-			String self = name + SELF;
-			Element child = document.createElement(nodeName(prefix, name));
-			node.appendChild(child);
-			if (doc.has(self)) {
-				child.setTextContent(doc.getAsString(self, ""));
-				if (doc.has(ATTRS)) {
-					JsonElement attrEl = doc.get(ATTRS);
-					if (attrEl != null) {
-						attrEl.getAsJsonObject().entrySet()
-								.forEach(x -> child.setAttribute(x.getKey(), x.getValue().getAsString()));
-					}
-				}
+			if (StringUtils.isNotBlank(name)) {
+				Element child = document.createElement(nodeName(prefix, name));
+				node.appendChild(child);
+				el.getAsJsonObject().entrySet().forEach(v -> parse(document, child, v.getKey(), v.getValue(), prefix));
 			} else {
-				el.getAsJsonObject().entrySet().forEach(v -> {
-					String key = v.getKey();
-					if (ATTRS.equals(key)) {
-						v.getValue().getAsJsonObject().entrySet()
-								.forEach(x -> child.setAttribute(x.getKey(), x.getValue().getAsString()));
-					} else {
-						parse(document, child, v.getKey(), v.getValue(), prefix);
-					}
-				});
+				el.getAsJsonObject().entrySet().forEach(v -> parse(document, node, v.getKey(), v.getValue(), prefix));
 			}
-		} else if (el.isJsonArray()) {
-			el.getAsJsonArray().forEach(v -> parse(document, node, name, v, prefix));
 		}
 	}
 
@@ -1337,6 +1582,50 @@ public final class JadeDoc {
 		} else if (el.isJsonArray()) {
 			el.getAsJsonArray().forEach(v -> parse(document, rootEl, path, v, prefix));
 		}
+
+		return document;
+	}
+
+	private static void parse(Document document, Element node, String name, JsonElement el) {
+		if ("_".equals(name)) {
+			el.getAsJsonObject().entrySet().forEach(x -> node.setAttribute(x.getKey(), x.getValue().getAsString()));
+		} else if ("@".equals(name)) {
+			Text textNode = document.createTextNode(el.getAsString());
+			node.appendChild(textNode);
+		} else if ("$".equals(name)) {
+			el.getAsJsonArray().forEach(v -> parse(document, node, "", v));
+		} else if (el.isJsonObject()) {
+			if (StringUtils.isNotBlank(name)) {
+				Element child = document.createElement(name);
+				node.appendChild(child);
+				el.getAsJsonObject().entrySet().forEach(v -> parse(document, child, v.getKey(), v.getValue()));
+			} else {
+				el.getAsJsonObject().entrySet().forEach(v -> parse(document, node, v.getKey(), v.getValue()));
+			}
+		}
+	}
+
+	public Document toXml() throws ParserConfigurationException {
+		Document document = createDocumentBuilder().newDocument();
+
+		Set<Entry<String, JsonElement>> first = this.getRoot().entrySet();
+		var size = this.getRoot().entrySet().size();
+
+		Element rootEl = null;
+		if (size == 1) {
+			@SuppressWarnings("unchecked")
+			Entry<String, JsonElement>[] xs = new Entry[1];
+			var vs = first.toArray(xs);
+			rootEl = document.createElement(vs[0].getKey());
+		} else {
+			rootEl = document.createElement("root");
+		}
+
+		for (var r : first) {
+			parse(document, rootEl, r.getKey(), r.getValue());
+		}
+
+		document.appendChild(rootEl);
 
 		return document;
 	}
@@ -1491,16 +1780,16 @@ public final class JadeDoc {
 		public JadeDoc create() {
 			return new JadeDoc(this.gson);
 		}
-		
+
 		public JadeDoc create(Dictionary<String, Object> values) {
 			JadeDoc doc = new JadeDoc(this.gson);
-			
+
 			Enumeration<String> e = values.keys();
-	        while(e.hasMoreElements()) {
-	            String key = e.nextElement();
-	            doc.addObject(key, values.get(key));
-	        }
-			
+			while (e.hasMoreElements()) {
+				String key = e.nextElement();
+				doc.addObject(key, values.get(key));
+			}
+
 			return doc;
 		}
 
@@ -1603,76 +1892,12 @@ public final class JadeDoc {
 			return ns[ns.length - 1];
 		}
 
-		public JadeDoc create(InputStream xmlStream, boolean keepNamespace) throws Exception {
-			Document doc = createDocumentBuilder().parse(xmlStream);
-			return this.create(doc, keepNamespace);
+		public JadeDoc createFromXml(InputStream xmlStream) throws Exception {
+			return XmlParser.parse(new InputStreamReader(xmlStream));
 		}
 
-		public JadeDoc create(byte[] xmlBytes, boolean keepNamespace) throws Exception {
-			Document doc = createDocumentBuilder().parse(new ByteArrayInputStream(xmlBytes));
-			return this.create(doc, keepNamespace);
-		}
-
-		public JadeDoc create(Document document, boolean keepNamespace) {
-			JadeDoc doc = new JadeDoc(this.gson);
-			Element rootElement = document.getDocumentElement();
-			rootElement.normalize();
-			String root = parseNodename(rootElement.getNodeName(), keepNamespace);
-			NamedNodeMap attrList = rootElement.getAttributes();
-
-			String content = rootElement.getTextContent();
-			if (StringUtils.isNotBlank(content)) {
-				doc.add(root, content);
-			}
-
-			if (rootElement.hasAttributes()) {
-				for (int i = 0; i < attrList.getLength(); i++) {
-					Node attr = attrList.item(i);
-					doc.add(root + "/attrs/" + parseNodename(attr.getNodeName(), keepNamespace), attr.getNodeValue());
-				}
-			}
-
-			if (rootElement.hasChildNodes() && rootElement.getChildNodes().getLength() == 1
-					&& rootElement.getFirstChild().getNodeType() == Node.TEXT_NODE) {
-				doc.add(root + "/" + root + SELF, rootElement.getTextContent());
-				return doc;
-			}
-			NodeList nodeList = rootElement.getChildNodes();
-
-			Map<String, List<Node>> nodes = new HashMap<>();
-			for (int i = 0; i < nodeList.getLength(); i++) {
-				Node child = nodeList.item(i);
-				if (child.getNodeType() == Node.ELEMENT_NODE) {
-					String name = parseNodename(child.getNodeName(), keepNamespace);
-					if (!child.hasAttributes() && child.hasChildNodes() && child.getChildNodes().getLength() == 1
-							&& child.getFirstChild().getNodeType() == Node.TEXT_NODE) {
-						doc.add(root + "/" + name, child.getTextContent());
-						continue;
-					}
-					List<Node> v;
-					if (nodes.containsKey(name)) {
-						v = nodes.get(name);
-					} else {
-						v = new ArrayList<>();
-						nodes.put(name, v);
-					}
-					v.add(child);
-				}
-			}
-
-			nodes.forEach((key, v) -> {
-				if (v.size() == 1) {
-					doc.add(root + "/" + parseNodename(key, keepNamespace), this.parseNode(v.get(0), keepNamespace));
-				} else {
-					List<JadeDoc> xs = new ArrayList<>();
-					for (Node x : v) {
-						xs.add(this.parseNode(x, keepNamespace));
-					}
-					doc.add(root + "/" + parseNodename(key, keepNamespace), xs);
-				}
-			});
-
-			return doc;
+		public JadeDoc createFromXml(byte[] xmlBytes) throws Exception {
+			return this.createFromXml(new ByteArrayInputStream(xmlBytes));
 		}
 
 		public JadeDoc create(Reader reader) {
