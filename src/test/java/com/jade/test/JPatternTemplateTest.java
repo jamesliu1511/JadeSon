@@ -38,7 +38,7 @@ public class JPatternTemplateTest {
 	
 	@Test
 	public void test3() throws IOException {
-		String content = "<vs:{ v | \\<name=\"<v.name>\", age=\"<v.age>\">}>";
+		String content = "{\"record\":[ <vs:{ v | {\"name\":\"<v.name>\",\"age\": \"<v.age>\"\\}}; separator=\", \">],\"code\": <test.record>}";
 		JadeDoc doc = JadeDoc.build().create();
 		JadeDoc doc1 = JadeDoc.build().create();
 		JadeDoc doc2 = JadeDoc.build().create();
@@ -50,6 +50,9 @@ public class JPatternTemplateTest {
 		doc3.add("name", "Peter");
 		doc3.add("age", 40);
 		doc.add("vs", doc1, doc2, doc3);
+		doc.add("test/record", 90);
+		
+		System.out.println(doc);
 		
 		String s = doc.compileST(content);
 		System.out.println(s);

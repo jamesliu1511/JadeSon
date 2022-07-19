@@ -73,6 +73,7 @@ import com.jade.path.processor.JPathTemplate;
 
 public final class JadeDoc {
 
+	private static final String ATTRS = "attrs";
 	private static final String SELF = "_self";
 	private static final String NAME = "name";
 	private static final String VALUE = "value";
@@ -356,6 +357,9 @@ public final class JadeDoc {
 	}
 
 	public <T> T fromJson(String pattern, Class<T> classOfT) {
+		if(StringUtils.isBlank(pattern)) {
+			return this.fromJson(classOfT);
+		}
 		JsonElement content = this.get(pattern);
 		if (content == null) {
 			return null;
@@ -1537,55 +1541,6 @@ public final class JadeDoc {
 		return name;
 	}
 
-	private static void parse(Document document, Element node, String name, JsonElement el, String prefix) {
-		if ("_".equals(name)) {
-			el.getAsJsonObject().entrySet().forEach(x -> node.setAttribute(x.getKey(), x.getValue().getAsString()));
-		} else if ("@".equals(name)) {
-			Text textNode = document.createTextNode(el.getAsString());
-			node.appendChild(textNode);
-		} else if ("$".equals(name)) {
-			el.getAsJsonArray().forEach(v -> parse(document, node, "", v, prefix));
-		} else if (el.isJsonObject()) {
-			if (StringUtils.isNotBlank(name)) {
-				Element child = document.createElement(nodeName(prefix, name));
-				node.appendChild(child);
-				el.getAsJsonObject().entrySet().forEach(v -> parse(document, child, v.getKey(), v.getValue(), prefix));
-			} else {
-				el.getAsJsonObject().entrySet().forEach(v -> parse(document, node, v.getKey(), v.getValue(), prefix));
-			}
-		}
-	}
-
-	public Document toXml(String path, String prefix, Map<String, String> attrs) throws ParserConfigurationException {
-		Document document = createDocumentBuilder().newDocument();
-		JsonElement el = this.get(path);
-		if (el == null) {
-			return null;
-		}
-
-		String xPath;
-		if ("*".equals(path)) {
-			xPath = "root";
-		} else {
-			String[] paths = path.split("/");
-			xPath = paths[paths.length - 1];
-		}
-		Element rootEl = document.createElement(nodeName(prefix, xPath));
-
-		attrs.forEach(rootEl::setAttribute);
-		document.appendChild(rootEl);
-
-		if (el.isJsonObject()) {
-			el.getAsJsonObject().entrySet().forEach(v -> parse(document, rootEl, v.getKey(), v.getValue(), prefix));
-		} else if (el.isJsonPrimitive()) {
-			rootEl.setTextContent(el.getAsString());
-		} else if (el.isJsonArray()) {
-			el.getAsJsonArray().forEach(v -> parse(document, rootEl, path, v, prefix));
-		}
-
-		return document;
-	}
-
 	private static void parse(Document document, Element node, String name, JsonElement el) {
 		if ("_".equals(name)) {
 			el.getAsJsonObject().entrySet().forEach(x -> node.setAttribute(x.getKey(), x.getValue().getAsString()));
@@ -1593,7 +1548,7 @@ public final class JadeDoc {
 			Text textNode = document.createTextNode(el.getAsString());
 			node.appendChild(textNode);
 		} else if ("$".equals(name)) {
-			el.getAsJsonArray().forEach(v -> parse(document, node, "", v));
+			el.getAsJsonArray().forEach(v -> parse(document, node, null, v));
 		} else if (el.isJsonObject()) {
 			if (StringUtils.isNotBlank(name)) {
 				Element child = document.createElement(name);
@@ -1630,6 +1585,73 @@ public final class JadeDoc {
 		return document;
 	}
 
+	private static void parseX(Document document, Element node, String name, JsonElement el, String prefix) {
+		if (ATTRS.equals(name)) {
+			el.getAsJsonObject().entrySet().forEach(x -> node.setAttribute(x.getKey(), x.getValue().getAsString()));
+		} else if (el.isJsonPrimitive()) {
+			Element child = document.createElement(nodeName(prefix, name));
+			child.setTextContent(el.getAsString());
+			node.appendChild(child);
+		} else if (el.isJsonObject()) {
+			JadeDoc doc = JadeDoc.build().create(el);
+			String self = name + SELF;
+			Element child = document.createElement(nodeName(prefix, name));
+			node.appendChild(child);
+			if (doc.has(self)) {
+				child.setTextContent(doc.getAsString(self, ""));
+				if (doc.has(ATTRS)) {
+					JsonElement attrEl = doc.get(ATTRS);
+					if (attrEl != null) {
+						attrEl.getAsJsonObject().entrySet()
+								.forEach(x -> child.setAttribute(x.getKey(), x.getValue().getAsString()));
+					}
+				}
+			} else {
+				el.getAsJsonObject().entrySet().forEach(v -> {
+					String key = v.getKey();
+					if (ATTRS.equals(key)) {
+						v.getValue().getAsJsonObject().entrySet()
+								.forEach(x -> child.setAttribute(x.getKey(), x.getValue().getAsString()));
+					} else {
+						parseX(document, child, v.getKey(), v.getValue(), prefix);
+					}
+				});
+			}
+		} else if (el.isJsonArray()) {
+			el.getAsJsonArray().forEach(v -> parseX(document, node, name, v, prefix));
+		}
+	}
+
+	public Document toXml(String path, String prefix, Map<String, String> attrs) throws ParserConfigurationException {
+		Document document = createDocumentBuilder().newDocument();
+		JsonElement el = this.get(path);
+		if (el == null) {
+			return null;
+		}
+
+		String xPath;
+		if ("*".equals(path)) {
+			xPath = "root";
+		} else {
+			String[] paths = path.split("/");
+			xPath = paths[paths.length - 1];
+		}
+		Element rootEl = document.createElement(nodeName(prefix, xPath));
+
+		attrs.forEach(rootEl::setAttribute);
+		document.appendChild(rootEl);
+
+		if (el.isJsonObject()) {
+			el.getAsJsonObject().entrySet().forEach(v -> parseX(document, rootEl, v.getKey(), v.getValue(), prefix));
+		} else if (el.isJsonPrimitive()) {
+			rootEl.setTextContent(el.getAsString());
+		} else if (el.isJsonArray()) {
+			el.getAsJsonArray().forEach(v -> parseX(document, rootEl, path, v, prefix));
+		}
+
+		return document;
+	}
+	
 	public static Builder build() {
 		return new Builder();
 	}
@@ -1900,6 +1922,78 @@ public final class JadeDoc {
 			return this.createFromXml(new ByteArrayInputStream(xmlBytes));
 		}
 
+		public JadeDoc create(InputStream xmlStream, boolean keepNamespace) throws Exception {
+			Document doc = createDocumentBuilder().parse(xmlStream);
+			return this.create(doc, keepNamespace);
+		}
+
+		public JadeDoc create(byte[] xmlBytes, boolean keepNamespace) throws Exception {
+			Document doc = createDocumentBuilder().parse(new ByteArrayInputStream(xmlBytes));
+			return this.create(doc, keepNamespace);
+		}
+
+		public JadeDoc create(Document document, boolean keepNamespace) {
+			JadeDoc doc = new JadeDoc(this.gson);
+			Element rootElement = document.getDocumentElement();
+			rootElement.normalize();
+			String root = parseNodename(rootElement.getNodeName(), keepNamespace);
+			NamedNodeMap attrList = rootElement.getAttributes();
+
+			String content = rootElement.getTextContent();
+			if (StringUtils.isNotBlank(content)) {
+				doc.add(root, content);
+			}
+
+			if (rootElement.hasAttributes()) {
+				for (int i = 0; i < attrList.getLength(); i++) {
+					Node attr = attrList.item(i);
+					doc.add(root + "/attrs/" + parseNodename(attr.getNodeName(), keepNamespace), attr.getNodeValue());
+				}
+			}
+
+			if (rootElement.hasChildNodes() && rootElement.getChildNodes().getLength() == 1
+					&& rootElement.getFirstChild().getNodeType() == Node.TEXT_NODE) {
+				doc.add(root + "/" + root + SELF, rootElement.getTextContent());
+				return doc;
+			}
+			NodeList nodeList = rootElement.getChildNodes();
+
+			Map<String, List<Node>> nodes = new HashMap<>();
+			for (int i = 0; i < nodeList.getLength(); i++) {
+				Node child = nodeList.item(i);
+				if (child.getNodeType() == Node.ELEMENT_NODE) {
+					String name = parseNodename(child.getNodeName(), keepNamespace);
+					if (!child.hasAttributes() && child.hasChildNodes() && child.getChildNodes().getLength() == 1
+							&& child.getFirstChild().getNodeType() == Node.TEXT_NODE) {
+						doc.add(root + "/" + name, child.getTextContent());
+						continue;
+					}
+					List<Node> v;
+					if (nodes.containsKey(name)) {
+						v = nodes.get(name);
+					} else {
+						v = new ArrayList<>();
+						nodes.put(name, v);
+					}
+					v.add(child);
+				}
+			}
+
+			nodes.forEach((key, v) -> {
+				if (v.size() == 1) {
+					doc.add(root + "/" + parseNodename(key, keepNamespace), this.parseNode(v.get(0), keepNamespace));
+				} else {
+					List<JadeDoc> xs = new ArrayList<>();
+					for (Node x : v) {
+						xs.add(this.parseNode(x, keepNamespace));
+					}
+					doc.add(root + "/" + parseNodename(key, keepNamespace), xs);
+				}
+			});
+
+			return doc;
+		}
+		
 		public JadeDoc create(Reader reader) {
 			return gson.fromJson(reader, JadeDoc.class);
 		}
