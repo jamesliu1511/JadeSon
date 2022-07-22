@@ -21,6 +21,7 @@ import java.time.ZonedDateTime;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Dictionary;
@@ -1311,6 +1312,31 @@ public final class JadeDoc {
 
 	public boolean getAsBoolean(String pattern, boolean defaultValue) {
 		return this.getWithDefault(pattern, defaultValue, JsonElement::getAsBoolean);
+	}
+	
+	public JadeDoc getStrAsJson(String pattern) {
+		JsonElement el = JPathProcessor.find(pattern, this.root);
+		if (el == null || el.isJsonNull() || !el.isJsonPrimitive()) {
+			return JadeDoc.build().create();
+		}
+		String str = el.getAsString();
+		
+		return JadeDoc.build().create(str);
+	}
+	
+	public JadeDoc getBase64AsJson(String pattern) {
+		JsonElement el = JPathProcessor.find(pattern, this.root);
+		if (el == null || el.isJsonNull() || !el.isJsonPrimitive()) {
+			return JadeDoc.build().create();
+		}
+		String base64Str = el.getAsString();
+		
+		return JadeDoc.build().create(Base64.getDecoder().decode(base64Str));
+	}
+	
+	public JadeDoc getAsJson(String pattern) {
+		JsonElement el = JPathProcessor.find(pattern, this.root);
+		return JadeDoc.build().create(el);
 	}
 
 	public void forEach(String arrayPattern, Consumer<JsonElement> action) throws ItemNotFoundException {
