@@ -365,7 +365,8 @@ public final class JadeDoc {
 		if (content == null) {
 			return null;
 		}
-		return gson.fromJson(content.getAsString(), classOfT);
+		var json = content.toString();
+		return gson.fromJson(json, classOfT);
 	}
 
 	private static class STObject extends AbstractMap<String, Object> {
