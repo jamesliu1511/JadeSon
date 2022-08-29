@@ -112,6 +112,10 @@ public final class JadeDoc {
 		return el.getAsInt();
 	}
 
+	public static Short getAsShort(JsonElement el) {
+		return el.getAsShort();
+	}
+
 	public static long getAsLong(JsonElement el) {
 		return el.getAsLong();
 	}
@@ -203,6 +207,10 @@ public final class JadeDoc {
 	}
 
 	private final Map<Class<?>, JadeDocFunction<JsonElement, Object>> getJsonElementAsFuns = Map.ofEntries(
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(short.class,
+					JadeDoc::getAsShort),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Short.class,
+					JadeDoc::getAsShort),
 			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(int.class, JadeDoc::getAsInt),
 			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<JsonElement, Object>>(Integer.class,
 					JadeDoc::getAsInt),
@@ -250,6 +258,8 @@ public final class JadeDoc {
 					JadeDoc::getAsNumber));
 
 	private final Map<Class<?>, JadeDocFunction<String, Object>> getAsFuns = Map.ofEntries(
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<String, Object>>(short.class, this::getAsShort),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<String, Object>>(Short.class, this::getAsShort),
 			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<String, Object>>(int.class, this::getAsInt),
 			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<String, Object>>(Integer.class, this::getAsInt),
 			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<String, Object>>(long.class, this::getAsLong),
@@ -283,6 +293,7 @@ public final class JadeDoc {
 			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<String, Object>>(Time.class, this::getAsTime),
 			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<String, Object>>(YearMonth.class,
 					this::getAsYearMonth),
+			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<String, Object>>(Map.class, this::getAsMap),
 			new AbstractMap.SimpleEntry<Class<?>, JadeDocFunction<String, Object>>(Number.class, this::getAsNumber));
 
 	private final Map<String, Class<?>> simpleTypes = Map.ofEntries(
@@ -358,7 +369,7 @@ public final class JadeDoc {
 	}
 
 	public <T> T fromJson(String pattern, Class<T> classOfT) {
-		if(StringUtils.isBlank(pattern)) {
+		if (StringUtils.isBlank(pattern)) {
 			return this.fromJson(classOfT);
 		}
 		JsonElement content = this.get(pattern);
@@ -682,6 +693,23 @@ public final class JadeDoc {
 		} else {
 			this.root.add(name, content.content());
 			return this;
+		}
+		return this;
+	}
+
+	public JadeDoc add(String pattern, Map<String, Object> contents) {
+		if (contents == null) {
+			return this;
+		}
+
+		if (StringUtils.isBlank(pattern)) {
+			contents.forEach((key, value) -> {
+				this.addObject(key, value);
+			});
+		} else {
+			contents.forEach((key, value) -> {
+				this.addObject(String.join("/", pattern, key), value);
+			});
 		}
 		return this;
 	}
@@ -1078,14 +1106,12 @@ public final class JadeDoc {
 		List<T> result = new ArrayList<>();
 
 		if (el.isJsonArray()) {
-			el.getAsJsonArray().forEach(v -> {
+			var es = el.getAsJsonArray();
+			for (int i = 0; i < es.size(); i++) {
 				Object x;
-				try {
-					x = this.getJsonElementAsFuns.get(requiredType).apply(v);
-					result.add((T) x);
-				} catch (ItemNotFoundException e) {
-				}
-			});
+				x = this.getJsonElementAsFuns.get(requiredType).apply(es.get(i));
+				result.add((T) x);
+			}
 		}
 
 		return (T[]) result.toArray();
@@ -1097,14 +1123,12 @@ public final class JadeDoc {
 		List<T> result = new ArrayList<>();
 
 		if (el.isJsonArray()) {
-			el.getAsJsonArray().forEach(v -> {
-				try {
-					var x = this.getJsonElementAsFuns.get(requiredType).apply(v);
-					result.add((T) x);
-				} catch (ItemNotFoundException e) {
-				}
-
-			});
+			var es = el.getAsJsonArray();
+			for (int i = 0; i < es.size(); i++) {
+				Object x;
+				x = this.getJsonElementAsFuns.get(requiredType).apply(es.get(i));
+				result.add((T) x);
+			}
 		} else {
 			var x = this.getJsonElementAsFuns.get(requiredType).apply(el);
 			result.add((T) x);
@@ -1121,6 +1145,11 @@ public final class JadeDoc {
 	public int getAsInt(String pattern) throws ItemNotFoundException {
 		JsonElement el = check(pattern);
 		return el.getAsInt();
+	}
+
+	public short getAsShort(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		return el.getAsShort();
 	}
 
 	public double getAsDouble(String pattern) throws ItemNotFoundException {
@@ -1226,6 +1255,16 @@ public final class JadeDoc {
 		return el.getAsNumber();
 	}
 
+	public Map<String, ?> getAsMap(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		if (!el.isJsonObject()) {
+			return new HashMap<>();
+		}
+		Map<String, Object> result = new HashMap<>();
+		el.getAsJsonObject().entrySet().forEach(ev -> result.put(ev.getKey(), ev.getValue()));
+		return result;
+	}
+
 	public Object getObject(String name, Class<?> cls) throws ItemNotFoundException {
 		if (this.getAsFuns.containsKey(cls)) {
 			return this.getAsFuns.get(cls).apply(name);
@@ -1311,30 +1350,30 @@ public final class JadeDoc {
 		return this.getWithDefault(pattern, defaultValue, JsonElement::getAsDouble);
 	}
 
-	public boolean getAsBoolean(String pattern, boolean defaultValue) {
+	public boolean getAsBoolean(String pattern, Boolean defaultValue) {
 		return this.getWithDefault(pattern, defaultValue, JsonElement::getAsBoolean);
 	}
-	
+
 	public JadeDoc getStrAsJson(String pattern) {
 		JsonElement el = JPathProcessor.find(pattern, this.root);
 		if (el == null || el.isJsonNull() || !el.isJsonPrimitive()) {
 			return JadeDoc.build().create();
 		}
 		String str = el.getAsString();
-		
+
 		return JadeDoc.build().create(str);
 	}
-	
+
 	public JadeDoc getBase64AsJson(String pattern) {
 		JsonElement el = JPathProcessor.find(pattern, this.root);
 		if (el == null || el.isJsonNull() || !el.isJsonPrimitive()) {
 			return JadeDoc.build().create();
 		}
 		String base64Str = el.getAsString();
-		
+
 		return JadeDoc.build().create(Base64.getDecoder().decode(base64Str));
 	}
-	
+
 	public JadeDoc getAsJson(String pattern) {
 		JsonElement el = JPathProcessor.find(pattern, this.root);
 		return JadeDoc.build().create(el);
@@ -1678,7 +1717,7 @@ public final class JadeDoc {
 
 		return document;
 	}
-	
+
 	public static Builder build() {
 		return new Builder();
 	}
@@ -2020,7 +2059,7 @@ public final class JadeDoc {
 
 			return doc;
 		}
-		
+
 		public JadeDoc create(Reader reader) {
 			return gson.fromJson(reader, JadeDoc.class);
 		}
