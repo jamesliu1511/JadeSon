@@ -157,42 +157,34 @@ public final class JadeDoc {
 	}
 
 	public static Instant getAsInstant(JsonElement el) {
-
 		return Instant.parse(el.getAsString());
 	}
 
 	public static LocalDateTime getAsLocalDateTime(JsonElement el) {
-
 		return LocalDateTime.parse(el.getAsString());
 	}
 
 	public static LocalDate getAsLocalDate(JsonElement el) {
-
 		return LocalDate.parse(el.getAsString());
 	}
 
 	public static OffsetDateTime getAsOffsetDateTime(JsonElement el) {
-
 		return OffsetDateTime.parse(el.getAsString());
 	}
 
 	public static OffsetTime getAsOffsetTime(JsonElement el) {
-
 		return OffsetTime.parse(el.getAsString());
 	}
 
 	public static ZonedDateTime getAsZonedDateTime(JsonElement el) {
-
 		return ZonedDateTime.parse(el.getAsString());
 	}
 
 	public static Timestamp getAsTimestamp(JsonElement el) {
-
 		return Timestamp.valueOf(el.getAsString());
 	}
 
 	public static Time getAsTime(JsonElement el) {
-
 		return Time.valueOf(el.getAsString());
 	}
 
