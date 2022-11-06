@@ -8,6 +8,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
@@ -50,6 +51,14 @@ class JadeDocTest {
 			out.append(buffer, 0, rsz);
 		}
 		return out.toString();
+	}
+
+	@Test
+	void testX1() throws Exception {
+		JsonPrimitive x = new JsonPrimitive(50);
+		Field f = JsonPrimitive.class.getDeclaredField("value");
+		f.setAccessible(true);
+		System.out.println(f.get(x));
 	}
 
 	@Test

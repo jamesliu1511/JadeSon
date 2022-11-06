@@ -53,8 +53,8 @@ public class JPathProcessor extends JPathProcessorBaseVisitor<JsonElement> {
 			return null;
 		}
 
-		if (findObj instanceof JPathValue) {
-			return ((JPathValue) findObj).getContent();
+		if (findObj instanceof JPathValue obj) {
+			return obj.getContent();
 		}
 		return findObj;
 	}
@@ -66,8 +66,8 @@ public class JPathProcessor extends JPathProcessorBaseVisitor<JsonElement> {
 			return null;
 		}
 
-		if (findObj instanceof JPathValue) {
-			return ((JPathValue) findObj).getContent();
+		if (findObj instanceof JPathValue obj) {
+			return obj.getContent();
 		}
 		return findObj;
 	}

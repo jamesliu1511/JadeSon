@@ -4,6 +4,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.lang.reflect.Field;
 import java.lang.reflect.Type;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -695,13 +696,9 @@ public final class JadeDoc {
 		}
 
 		if (StringUtils.isBlank(pattern)) {
-			contents.forEach((key, value) -> {
-				this.addObject(key, value);
-			});
+			contents.forEach(this::addObject);
 		} else {
-			contents.forEach((key, value) -> {
-				this.addObject(String.join("/", pattern, key), value);
-			});
+			contents.forEach((key, value) -> this.addObject(String.join("/", pattern, key), value));
 		}
 		return this;
 	}
@@ -1257,7 +1254,27 @@ public final class JadeDoc {
 		return result;
 	}
 
+	public Object getObject(String name) throws ItemNotFoundException {
+		JsonElement el = check(name);
+		if (!el.isJsonPrimitive()) {
+			return el.toString();
+		}
+		JsonPrimitive val = el.getAsJsonPrimitive();
+		Field f;
+		try {
+			f = JsonPrimitive.class.getDeclaredField("value");
+			f.setAccessible(true);
+			return f.get(val);
+		} catch (NoSuchFieldException | IllegalArgumentException | IllegalAccessException | SecurityException e) {
+			throw new ItemNotFoundException(name);
+		}
+	}
+
 	public Object getObject(String name, Class<?> cls) throws ItemNotFoundException {
+		if (cls == null) {
+			return this.getObject(name);
+		}
+
 		if (this.getAsFuns.containsKey(cls)) {
 			return this.getAsFuns.get(cls).apply(name);
 		}
@@ -1266,6 +1283,11 @@ public final class JadeDoc {
 	}
 
 	public Object getObject(String name, String type) throws ItemNotFoundException, ClassNotFoundException {
+
+		if (type == null || type.length() < 1) {
+			return this.getObject(name);
+		}
+
 		String xType = type.toLowerCase();
 		if (this.getStrAsFuns.containsKey(xType)) {
 			return this.getStrAsFuns.get(xType).apply(name);
@@ -1385,6 +1407,10 @@ public final class JadeDoc {
 
 	public void forEach(BiConsumer<String, JsonElement> action) {
 		this.root.entrySet().forEach(v -> action.accept(v.getKey(), v.getValue()));
+	}
+
+	public List<String> keys() {
+		return this.root.entrySet().stream().map(v -> v.getKey()).toList();
 	}
 
 	public void forEachX(String arrayPattern, Consumer<JsonElement> action) {
