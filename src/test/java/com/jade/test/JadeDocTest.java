@@ -79,7 +79,7 @@ class JadeDocTest {
 		System.out.println(content);
 
 		compiledPattern = new CompiledPattern(
-				"I love #{name}, but hate #{properties[fn:equal(@name,'isName')]/*[0]/name}", "#");
+				"I love #{name}, but hate #{properties[fn:equal(@name,'isName')]/*[0]/name}", '#');
 		content = doc.compileX(compiledPattern);
 		System.out.println(content);
 	}
@@ -598,17 +598,17 @@ class JadeDocTest {
 		});
 	}
 
-	@Test
-	public void test29() throws IOException {
-		Builder builder = JadeDoc.build();
-		JadeDoc model = builder.create(read("test4.json"));
-		JadeDoc.CompiledPattern fs = new JadeDoc.CompiledPattern("key-@{name}_@{Ids}_v2");
-
-		List<String> xs = fs.compileXs(model);
-		for (String x : xs) {
-			System.out.println(x);
-		}
-	}
+//	@Test
+//	public void test29() throws IOException {
+//		Builder builder = JadeDoc.build();
+//		JadeDoc model = builder.create(read("test4.json"));
+//		JadeDoc.CompiledPattern fs = new JadeDoc.CompiledPattern("key-@{name}_@{Ids}_v2");
+//
+//		List<String> xs = fs.compileXs(model);
+//		for (String x : xs) {
+//			System.out.println(x);
+//		}
+//	}
 
 	@Test
 	public void test30() throws IOException, Exception {

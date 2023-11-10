@@ -73,11 +73,25 @@ public class JPathActionTest {
 
 		x = JPathAction.process(elements, "a/b[fm:add(@abc, 123)]");
 		System.out.println(x);
+		
+		x = JPathAction.process(elements, "a[fm:add(@abc, 123)]");
+		System.out.println(x);
 
 		x = JPathAction.process(elements, "a/b[fm:default(@fxx, 123)]");
 		System.out.println(x);
 
 		x = JPathAction.process(x, "a/b[fm:rename(@fxx, 'xxxxx')]");
+		System.out.println(x);
+	}
+
+	@Test
+	public void test3() {
+		JsonObject elements = new JsonObject();
+		JsonObject a = new JsonObject();
+		elements.add("a", a);
+
+		JsonObject x = JPathAction.process(elements, "*[fm:add(@abc, 123)]");
+		x = JPathAction.process(x, "*[fm:rename(@abc, 'xxxxx')]");
 		System.out.println(x);
 	}
 

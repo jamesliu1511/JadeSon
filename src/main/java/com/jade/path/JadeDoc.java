@@ -1,6 +1,7 @@
 package com.jade.path;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
@@ -65,9 +66,16 @@ import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
+import com.google.gson.ToNumberStrategy;
+import com.google.gson.TypeAdapter;
+import com.google.gson.internal.LinkedTreeMap;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import com.google.gson.stream.JsonWriter;
 import com.jade.path.exception.ItemNotFoundException;
 import com.jade.path.processor.JPathAction;
 import com.jade.path.processor.JPathProcessor;
@@ -87,7 +95,11 @@ public final class JadeDoc {
 	private static final Pattern ARRAYTYPE = Pattern.compile("array<(?<name>.+)>");
 	private static final Pattern LISTTYPE = Pattern.compile("list<(?<name>.+)>");
 	private static final String KEYPATTERN = "%s\\{(?<name>[^\\{\\}]+)\\}";
+	private static final String CHECK_KEYPATTERN = "%s\\{.*\\}";
+	private static final Pattern DEFAULT_EXPATTERN = Pattern.compile("@\\{(?<name>[^\\{\\}]+)\\}");
 	private static final Pattern GATHERPATTERN = Pattern.compile("\\(\\?<(?<name>[A-Za-z0-9$]+)>");
+	private static final Pattern BYTEPATTERN = Pattern.compile("-?\\d{1,2}");
+	private static final Pattern SHORTPATTERN = Pattern.compile("-?\\d{1,5}");
 	private static final Pattern INTPATTERN = Pattern.compile("-?\\d{1,10}");
 	private static final Pattern LONGPATTERN = Pattern.compile("-?\\d{11,20}");
 	private static final Pattern FLOATPATTERN = Pattern.compile("[+-]?(\\d+|\\d+\\.\\d+|\\.\\d+|\\d+\\.)([eE]\\d+)?");
@@ -499,6 +511,16 @@ public final class JadeDoc {
 			return new JsonPrimitive(Boolean.parseBoolean(value.toLowerCase(Locale.ENGLISH)));
 		}
 
+		matcher = BYTEPATTERN.matcher(value);
+		if (matcher.matches()) {
+			return new JsonPrimitive(Byte.parseByte(value));
+		}
+
+		matcher = SHORTPATTERN.matcher(value);
+		if (matcher.matches()) {
+			return new JsonPrimitive(Short.parseShort(value));
+		}
+
 		matcher = INTPATTERN.matcher(value);
 		if (matcher.matches()) {
 			return new JsonPrimitive(Integer.parseInt(value));
@@ -517,18 +539,42 @@ public final class JadeDoc {
 		return new JsonPrimitive(value);
 	}
 
+	public static final Number parseNumber(String value) {
+		if (StringUtils.isBlank(value)) {
+			return null;
+		}
+
+		Matcher matcher = SHORTPATTERN.matcher(value);
+		if (matcher.matches()) {
+			return Short.parseShort(value);
+		}
+
+		matcher = INTPATTERN.matcher(value);
+		if (matcher.matches()) {
+			return Integer.parseInt(value);
+		}
+
+		matcher = LONGPATTERN.matcher(value);
+		if (matcher.matches()) {
+			return Long.parseLong(value);
+		}
+
+		return Double.parseDouble(value);
+	}
+
 	public static class CompiledPattern {
 		private final List<String> names = new ArrayList<>();
 		private final String content;
-		private final String prefix;
+		private final char prefix;
 
 		public CompiledPattern(String content) {
-			this(content, "@");
+			this(content, '@');
 		}
 
-		public CompiledPattern(String content, String prefix) {
+		public CompiledPattern(String content, char prefix) {
 			this.prefix = prefix;
 			this.content = content;
+
 			if (StringUtils.isBlank(content)) {
 				return;
 			}
@@ -543,7 +589,7 @@ public final class JadeDoc {
 			return content;
 		}
 
-		public String getPrefix() {
+		public char getPrefix() {
 			return prefix;
 		}
 
@@ -551,12 +597,142 @@ public final class JadeDoc {
 			return StringUtils.isBlank(content);
 		}
 
+		private static String replaceAll(char prefix, String content, String old, String replacement) {
+			String replacementString = Matcher.quoteReplacement(old);
+			replacementString = replacementString.replace("" + prefix + "{", "\\" + prefix + "\\{");
+			replacementString = replacementString.replace("}", "\\}");
+
+			return content.replaceAll(replacementString, replacement);
+		}
+
+		private static String parseNestedExpression(char prefix, String expression, JadeDoc doc)
+				throws ItemNotFoundException {
+			Pattern pattern = Pattern.compile(String.format(CHECK_KEYPATTERN, prefix));
+			StringBuilder currentExpression = new StringBuilder();
+			String newExpr = expression;
+			for (int i = 0; i < expression.length(); i++) {
+				char c = expression.charAt(i);
+				if (c == prefix) {
+					if (currentExpression.length() > 0) {
+						// names.add(currentExpression.toString());
+						currentExpression.setLength(0);
+					}
+				} else if (c == '{') {
+					int nesting = 1;
+					StringBuilder nestedExpression = new StringBuilder();
+					while (nesting > 0) {
+						c = expression.charAt(++i);
+						if (c == '{')
+							nesting++;
+						if (c == '}')
+							nesting--;
+						if (nesting > 0)
+							nestedExpression.append(c);
+					}
+					// System.out.println(String.format("nest: %s", nestedExpression.toString()));
+					String expr = nestedExpression.toString();
+					Matcher matcher = pattern.matcher(expr);
+					if (matcher.find()) {
+						String newData = parseNestedExpression(prefix, expr, doc);
+						String xx = nestedExpression.toString();
+						newExpr = replaceAll(prefix, newExpr, xx, newData);
+					} else {
+						newExpr = replaceAll(prefix, newExpr, String.format(S_S, prefix, expr), compile2(expr, doc));
+					}
+				} else {
+					currentExpression.append(c);
+				}
+			}
+			return lastCompile(prefix, newExpr, doc);
+		}
+
+		private static String parseNestedExpressionX(char prefix, String expression, JadeDoc doc) {
+			Pattern pattern = Pattern.compile(String.format(CHECK_KEYPATTERN, prefix));
+			StringBuilder currentExpression = new StringBuilder();
+			String newExpr = expression;
+			for (int i = 0; i < expression.length(); i++) {
+				char c = expression.charAt(i);
+				if (c == prefix) {
+					if (currentExpression.length() > 0) {
+						// names.add(currentExpression.toString());
+						currentExpression.setLength(0);
+					}
+				} else if (c == '{') {
+					int nesting = 1;
+					StringBuilder nestedExpression = new StringBuilder();
+					while (nesting > 0) {
+						c = expression.charAt(++i);
+						if (c == '{')
+							nesting++;
+						if (c == '}')
+							nesting--;
+						if (nesting > 0)
+							nestedExpression.append(c);
+					}
+					// System.out.println(String.format("nest: %s", nestedExpression.toString()));
+					String expr = nestedExpression.toString();
+					Matcher matcher = pattern.matcher(expr);
+					if (matcher.find()) {
+						String newData = parseNestedExpressionX(prefix, expr, doc);
+						String xx = nestedExpression.toString();
+						newExpr = replaceAll(prefix, newExpr, xx, newData);
+					} else {
+						newExpr = replaceAll(prefix, newExpr, String.format(S_S, prefix, expr),
+								compile2X(prefix, expr, doc));
+					}
+				} else {
+					currentExpression.append(c);
+				}
+			}
+			return lastCompileX(prefix, newExpr, doc);
+		}
+
 		public final String compile(JadeDoc doc) throws ItemNotFoundException {
 			if (names.isEmpty()) {
 				return content;
 			}
-			String key = content;
-			for (String v : this.names) {
+			return parseNestedExpression('@', this.content, doc);
+		}
+
+		private static final String compile2(String key, JadeDoc doc) throws ItemNotFoundException {
+			Matcher matcher = HASDEFAULT.matcher(key);
+			if (matcher.matches()) {
+				String path = matcher.group(NAME);
+				return doc.getAsString(path, matcher.group(VALUE));
+			} else {
+				return doc.getAsString(key);
+			}
+		}
+
+		private static final String compile2X(char prefix, String key, JadeDoc doc) {
+			Matcher matcher = HASDEFAULT.matcher(key);
+			if (matcher.matches()) {
+				String path = matcher.group(NAME);
+				return doc.getAsString(path, matcher.group(VALUE));
+			} else {
+				return doc.getAsString(key, String.format(S_S, prefix, key));
+			}
+		}
+
+		public final String compileX(JadeDoc doc) {
+			if (names.isEmpty()) {
+				return content;
+			}
+			return parseNestedExpressionX('@', this.content, doc);
+		}
+
+		private static final String lastCompile(char prefix, String expr, JadeDoc doc) throws ItemNotFoundException {
+			List<String> newNames = new ArrayList<>();
+			Pattern expressionKeyPattern = Pattern.compile(String.format(KEYPATTERN, prefix));
+			Matcher match = expressionKeyPattern.matcher(expr);
+			while (match.find()) {
+				newNames.add(match.group(NAME));
+			}
+			if (newNames.isEmpty()) {
+				return expr;
+			}
+			String key = expr;
+			for (String v : newNames) {
 				String value;
 				Matcher matcher = HASDEFAULT.matcher(v);
 				if (matcher.matches()) {
@@ -565,26 +741,32 @@ public final class JadeDoc {
 				} else {
 					value = doc.getAsString(v);
 				}
-				key = key.replace(String.format(S_S, this.prefix, v), value);
+				key = replaceAll(prefix, key, String.format(S_S, prefix, v), value);
 			}
 			return key;
 		}
 
-		public final String compileX(JadeDoc doc) {
-			if (names.isEmpty()) {
-				return content;
+		private static final String lastCompileX(char prefix, String expr, JadeDoc doc) {
+			List<String> newNames = new ArrayList<>();
+			Pattern expressionKeyPattern = Pattern.compile(String.format(KEYPATTERN, prefix));
+			Matcher match = expressionKeyPattern.matcher(expr);
+			while (match.find()) {
+				newNames.add(match.group(NAME));
 			}
-			String key = content;
-			for (String v : this.names) {
+			if (newNames.isEmpty()) {
+				return expr;
+			}
+			String key = expr;
+			for (String v : newNames) {
 				String value;
 				Matcher matcher = HASDEFAULT.matcher(v);
 				if (matcher.matches()) {
 					String path = matcher.group(NAME);
 					value = doc.getAsString(path, matcher.group(VALUE));
 				} else {
-					value = doc.getAsString(v, String.format(S_S, this.prefix, v));
+					value = doc.getAsString(v, null);
 				}
-				key = key.replace(String.format(S_S, this.prefix, v), value);
+				key = replaceAll(prefix, key, String.format(S_S, prefix, v), String.valueOf(value));
 			}
 			return key;
 		}
@@ -640,9 +822,9 @@ public final class JadeDoc {
 		return compiledPattern.compileX(this);
 	}
 
-	public final List<String> compileXs(CompiledPattern compiledPattern) {
-		return compiledPattern.compileXs(this);
-	}
+//	public final List<String> compileXs(CompiledPattern compiledPattern) {
+//		return compiledPattern.compileXs(this);
+//	}
 
 	public static JadeDoc merge(JadeDoc... docs) {
 		if (docs == null || docs.length < 1) {
@@ -756,7 +938,6 @@ public final class JadeDoc {
 	}
 
 	private static final void merge(JsonObject target, JsonObject source) {
-
 		if (source == null || target == null) {
 			return;
 		}
@@ -768,7 +949,13 @@ public final class JadeDoc {
 				if (el.isJsonObject()) {
 					merge(el.getAsJsonObject(), e.getAsJsonObject());
 				} else {
-					target.add(x.getKey(), x.getValue());
+					if(target.get(x.getKey()) == null) {
+						target.add(x.getKey(), x.getValue());	
+					} else {
+						if(x.getValue() != null) {
+							target.add(x.getKey(), x.getValue());
+						}
+					}
 				}
 			} else {
 				target.add(x.getKey(), x.getValue());
@@ -1080,12 +1267,17 @@ public final class JadeDoc {
 			if (v.isString()) {
 				return v.getAsString();
 			}
+		} else if (el.isJsonNull()) {
+			return null;
 		}
 		return el.toString();
 	}
 
 	public String getString(String pattern) {
 		JsonElement el = JPathProcessor.find(pattern, this.root);
+		if (el.isJsonNull()) {
+			return null;
+		}
 		return el.getAsString();
 	}
 
@@ -1280,6 +1472,39 @@ public final class JadeDoc {
 		}
 
 		return this.fromJson(name, cls);
+	}
+
+	public Object getObject(String name, Class<?> cls, boolean ignoreCase) throws ItemNotFoundException {
+		if (!ignoreCase) {
+			return this.getObject(name, cls);
+		}
+
+		if (cls == null) {
+			var first = this.root.entrySet().stream().filter((v) -> v.getKey().equalsIgnoreCase(name)).findFirst();
+			if (first.isPresent()) {
+				return first.get().getValue();
+			}
+			return null;
+		}
+
+		if (this.getAsFuns.containsKey(cls)) {
+			var first = this.root.entrySet().stream().filter((v) -> v.getKey().equalsIgnoreCase(name)).findFirst();
+			if (first.isPresent()) {
+				if (first.get().getValue().isJsonNull()) {
+					return null;
+				}
+				return this.getAsFuns.get(cls).apply(first.get().getKey());
+			}
+			return null;
+		}
+		var first = this.root.entrySet().stream().filter((v) -> v.getKey().equalsIgnoreCase(name)).findFirst();
+		if (first.isPresent()) {
+			if (first.get().getValue().isJsonNull()) {
+				return null;
+			}
+			return this.fromJson(name, cls);
+		}
+		return this.fromJson(cls);
 	}
 
 	public Object getObject(String name, String type) throws ItemNotFoundException, ClassNotFoundException {
@@ -1615,7 +1840,7 @@ public final class JadeDoc {
 	}
 
 	public String toJson() {
-		return this.root.toString();
+		return this.gson.toJson(root);
 	}
 
 	private static String nodeName(String prefix, String name) {
@@ -1773,9 +1998,20 @@ public final class JadeDoc {
 			this.target = target;
 		}
 
+		public String getSource() {
+			return source;
+		}
+
+		public String getTarget() {
+			return target;
+		}
+
 		public String getKey() {
 			return String.format("%s-%s", this.source, this.target);
 		}
+	}
+
+	public record CPattern(CompiledPattern source, CompiledPattern target) {
 	}
 
 	public static class JsonTemplate {
@@ -1812,14 +2048,102 @@ public final class JadeDoc {
 			return this;
 		}
 
-		public static final JsonTemplate parse(String jsonContent) {
-			Builder builder = new Builder();
+		public Map<String, CPattern> getCompilePattern() {
+			Map<String, CPattern> compiledPatterns = new HashMap<>();
 
-			JsonTemplate template = new JsonTemplate();
-			if (StringUtils.isBlank(jsonContent)) {
-				return template;
+			for (var p : this.patterns.values()) {
+				CompiledPattern source = null;
+				CompiledPattern target = null;
+				Matcher match = DEFAULT_EXPATTERN.matcher(p.getSource());
+				if (match.find()) {
+					source = new CompiledPattern(p.getSource());
+				}
+				if (p.getTarget() != null) {
+					match = DEFAULT_EXPATTERN.matcher(p.getTarget());
+					if (match.find()) {
+						target = new CompiledPattern(p.getTarget());
+					}
+				}
+				if (source != null || target != null) {
+					compiledPatterns.put(p.getKey(), new CPattern(source, target));
+				}
 			}
 
+			for (var v : this.simplePattern) {
+				Matcher match = DEFAULT_EXPATTERN.matcher(v);
+				if (match.find()) {
+					compiledPatterns.put(v, new CPattern(new CompiledPattern(v), null));
+				}
+			}
+
+			for (var v : this.actions) {
+				Matcher match = DEFAULT_EXPATTERN.matcher(v);
+				if (match.find()) {
+					compiledPatterns.put(v, new CPattern(new CompiledPattern(v), null));
+				}
+			}
+
+			for (var v : this.removes) {
+				Matcher match = DEFAULT_EXPATTERN.matcher(v);
+				if (match.find()) {
+					compiledPatterns.put(v, new CPattern(new CompiledPattern(v), null));
+				}
+			}
+
+			return compiledPatterns;
+		}
+
+		public JsonTemplate generate(JadeDoc doc, Map<String, CPattern> compiledPatterns) {
+			JsonTemplate template = new JsonTemplate();
+
+			for (var v : this.actions) {
+				Matcher match = DEFAULT_EXPATTERN.matcher(v);
+				if (match.find()) {
+					CPattern cp = compiledPatterns.get(v);
+					template.actions.add(cp.source().compileX(doc));
+				} else {
+					template.actions.add(v);
+				}
+			}
+
+			for (var v : this.removes) {
+				Matcher match = DEFAULT_EXPATTERN.matcher(v);
+				if (match.find()) {
+					CPattern cp = compiledPatterns.get(v);
+					template.removes.add(cp.source().compileX(doc));
+				} else {
+					template.removes.add(v);
+				}
+			}
+
+			for (var p : this.patterns.values()) {
+				String source = p.getSource();
+				String target = p.getTarget();
+				if (compiledPatterns.containsKey(p.getKey())) {
+					CPattern cp = compiledPatterns.get(p.getKey());
+					if (cp.source() != null) {
+						source = cp.source().compileX(doc);
+					}
+					if (cp.target() != null) {
+						target = cp.target().compileX(doc);
+					}
+				}
+				template.pattern(source, target);
+			}
+
+			for (var v : this.simplePattern) {
+				Matcher match = DEFAULT_EXPATTERN.matcher(v);
+				if (match.find()) {
+					CPattern cp = compiledPatterns.get(v);
+					template.simplePattern.add(cp.source().compileX(doc));
+				}
+			}
+
+			return template;
+		}
+
+		public final void add(String jsonContent) {
+			Builder builder = new Builder();
 			JadeDoc doc = builder.create(jsonContent);
 
 			doc.forEachX("patterns", el -> {
@@ -1828,19 +2152,32 @@ public final class JadeDoc {
 				if (v.has("target")) {
 					String target = v.get("target").getAsString();
 					if (StringUtils.isBlank(target)) {
-						template.pattern(source);
+						this.pattern(source);
 					} else {
-						template.pattern(source, target);
+						this.pattern(source, target);
 					}
 				} else {
-					template.simplePattern.add(source);
+					this.simplePattern.add(source);
 				}
 			});
 
-			doc.forEachX("actions", el -> template.action(el.getAsString()));
+			if (doc.has("simplePattern")) {
+				var rs = doc.get("simplePattern").getAsJsonArray();
+				for (var r : rs) {
+					this.simplePattern.add(r.getAsString());
+				}
+			}
 
-			doc.forEachX("removes", el -> template.remove(el.getAsString()));
+			doc.forEachX("actions", el -> this.action(el.getAsString()));
+			doc.forEachX("removes", el -> this.remove(el.getAsString()));
+		}
 
+		public static final JsonTemplate parse(String jsonContent) {
+			JsonTemplate template = new JsonTemplate();
+			if (StringUtils.isBlank(jsonContent)) {
+				return template;
+			}
+			template.add(jsonContent);
 			return template;
 		}
 
@@ -1852,12 +2189,133 @@ public final class JadeDoc {
 		}
 	}
 
+	public static class MapAdapter
+			implements JsonSerializer<Map<String, Object>>, JsonDeserializer<Map<String, Object>> {
+		@Override
+		public JsonElement serialize(Map<String, Object> src, Type typeOfSrc, JsonSerializationContext context) {
+			JsonObject jsonObject = new JsonObject();
+			for (Object key : src.keySet()) {
+				jsonObject.addProperty(String.valueOf(key), String.valueOf(src.get(key)));
+			}
+			return jsonObject;
+		}
+
+		@Override
+		public Map<String, Object> deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context)
+				throws JsonParseException {
+			Map<String, Object> map = new HashMap<>();
+			JsonObject jsonObject = json.getAsJsonObject();
+			for (Map.Entry<String, JsonElement> entry : jsonObject.entrySet()) {
+				var v = entry.getValue();
+				if (v.isJsonPrimitive()) {
+					JsonPrimitive jp = v.getAsJsonPrimitive();
+					if (jp.isBoolean()) {
+						map.put(entry.getKey(), jp.getAsBoolean());
+					} else if (jp.isNumber()) {
+						map.put(entry.getKey(), parseNumber(jp.getAsString()));
+					} else {
+						map.put(entry.getKey(), jp.getAsString());
+					}
+				} else if (v.isJsonNull()) {
+					map.put(entry.getKey(), null);
+				} else {
+					map.put(entry.getKey(), v.getAsString());
+				}
+			}
+			return map;
+		}
+	}
+
+	public class DataTypeAdapter extends TypeAdapter<Object> {
+
+		private final TypeAdapter<Object> delegate = new Gson().getAdapter(Object.class);
+
+		@Override
+		public void write(JsonWriter out, Object value) throws IOException {
+			delegate.write(out, value);
+		}
+
+		@Override
+		public Object read(JsonReader in) throws IOException {
+			JsonToken token = in.peek();
+			switch (token) {
+			case BEGIN_ARRAY:
+				List<Object> list = new ArrayList<Object>();
+				in.beginArray();
+				while (in.hasNext()) {
+					list.add(read(in));
+				}
+				in.endArray();
+				return list;
+
+			case BEGIN_OBJECT:
+				Map<String, Object> map = new LinkedTreeMap<String, Object>();
+				in.beginObject();
+				while (in.hasNext()) {
+					map.put(in.nextName(), read(in));
+				}
+				in.endObject();
+				return map;
+
+			case STRING:
+				return in.nextString();
+
+			case NUMBER:
+				// return in.nextDouble();
+				String n = in.nextString();
+				if (n.indexOf('.') != -1) {
+					return Double.parseDouble(n);
+				}
+				return Long.parseLong(n);
+
+			case BOOLEAN:
+				return in.nextBoolean();
+
+			case NULL:
+				in.nextNull();
+				return null;
+
+			default:
+				throw new IllegalStateException();
+			}
+		}
+	}
+
+	public static class LazilyParsedNumber implements ToNumberStrategy {
+		@Override
+		public Number readNumber(JsonReader in) throws IOException {
+			String v = in.nextString();
+			return parseNumber(v);
+		}
+	}
+
+	public static String toJson(Object obj) {
+		GsonBuilder builder = new GsonBuilder();
+		builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
+		builder.setObjectToNumberStrategy(new LazilyParsedNumber());
+		builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
+		var gson = builder.disableHtmlEscaping().create();
+		return gson.toJson(obj);
+	}
+
+	public static <T> T from(String data, Class<T> classOfT) {
+		GsonBuilder builder = new GsonBuilder();
+		builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
+		builder.setObjectToNumberStrategy(new LazilyParsedNumber());
+		builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
+		var gson = builder.disableHtmlEscaping().create();
+		return gson.fromJson(data, classOfT);
+	}
+
 	public static class Builder {
 
 		private final Gson gson;
 
 		private Builder(GsonBuilder builder) {
 			builder.registerTypeAdapter(JadeDoc.class, new JadeDocAdapter(null)).disableHtmlEscaping();
+			builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
+			builder.setObjectToNumberStrategy(new LazilyParsedNumber());
+			builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
 			this.gson = builder.disableHtmlEscaping().create();
 		}
 
@@ -1867,11 +2325,17 @@ public final class JadeDoc {
 
 		private Builder(GsonBuilder builder, JsonTemplate template, Map<String, Object> values) {
 			builder.registerTypeAdapter(JadeDoc.class, new JadeDocAdapter(template, values));
+			builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
+			builder.setObjectToNumberStrategy(new LazilyParsedNumber());
+			builder.setDateFormat("yyyy-MM-dd HH:mm:ssZ");
 			this.gson = builder.disableHtmlEscaping().create();
 		}
 
 		private Builder(GsonBuilder builder, JsonTemplate template) {
 			builder.registerTypeAdapter(JadeDoc.class, new JadeDocAdapter(template));
+			builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
+			builder.setObjectToNumberStrategy(new LazilyParsedNumber());
+			builder.setDateFormat("yyyy-MM-dd HH:mm:ssZ");
 			this.gson = builder.disableHtmlEscaping().create();
 		}
 
@@ -2114,6 +2578,10 @@ public final class JadeDoc {
 			return gson.toJson(model);
 		}
 
+		public String toJson(Object model) {
+			return gson.toJson(model);
+		}
+
 		public static class RegularPattern {
 			private final String regularExpress;
 			private final List<String> names = new ArrayList<>();
@@ -2182,6 +2650,14 @@ public final class JadeDoc {
 
 				JadeDoc model = new JadeDoc(Builder.this.gson);
 
+				for (String pattern : this.template.simplePattern) {
+					if ("*".equals(pattern)) {
+						model.join(source);
+						continue;
+					}
+					JPathTemplate.add(model.root, pattern, source, pattern, this.values);
+				}
+
 				for (Entry<String, PatternPair> pattern : this.template.patterns.entrySet()) {
 					String sourceStr = pattern.getValue().source;
 					String target = pattern.getValue().target;
@@ -2196,15 +2672,7 @@ public final class JadeDoc {
 					}
 					JPathTemplate.add(model.root, target, source, sourceStr, this.values);
 				}
-
-				for (String pattern : this.template.simplePattern) {
-					if ("*".equals(pattern)) {
-						model.join(source);
-						continue;
-					}
-					JPathTemplate.add(model.root, pattern, source, pattern, this.values);
-				}
-
+				
 				for (String pattern : this.template.actions) {
 					JPathAction.process(model.root, pattern, values);
 				}
