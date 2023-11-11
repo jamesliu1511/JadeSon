@@ -30,11 +30,13 @@ import java.util.Dictionary;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -95,7 +97,6 @@ public final class JadeDoc {
 	private static final Pattern ARRAYTYPE = Pattern.compile("array<(?<name>.+)>");
 	private static final Pattern LISTTYPE = Pattern.compile("list<(?<name>.+)>");
 	private static final String KEYPATTERN = "%s\\{(?<name>[^\\{\\}]+)\\}";
-	private static final String CHECK_KEYPATTERN = "%s\\{.*\\}";
 	private static final Pattern DEFAULT_EXPATTERN = Pattern.compile("@\\{(?<name>[^\\{\\}]+)\\}");
 	private static final Pattern GATHERPATTERN = Pattern.compile("\\(\\?<(?<name>[A-Za-z0-9$]+)>");
 	private static final Pattern BYTEPATTERN = Pattern.compile("-?\\d{1,2}");
@@ -563,7 +564,6 @@ public final class JadeDoc {
 	}
 
 	public static class CompiledPattern {
-		private final List<String> names = new ArrayList<>();
 		private final String content;
 		private final char prefix;
 
@@ -574,15 +574,6 @@ public final class JadeDoc {
 		public CompiledPattern(String content, char prefix) {
 			this.prefix = prefix;
 			this.content = content;
-
-			if (StringUtils.isBlank(content)) {
-				return;
-			}
-			Pattern expressionKeyPattern = Pattern.compile(String.format(KEYPATTERN, prefix));
-			Matcher match = expressionKeyPattern.matcher(content);
-			while (match.find()) {
-				this.names.add(match.group(NAME));
-			}
 		}
 
 		public String getContent() {
@@ -597,27 +588,17 @@ public final class JadeDoc {
 			return StringUtils.isBlank(content);
 		}
 
-		private static String replaceAll(char prefix, String content, String old, String replacement) {
-			String replacementString = Matcher.quoteReplacement(old);
-			replacementString = replacementString.replace("" + prefix + "{", "\\" + prefix + "\\{");
-			replacementString = replacementString.replace("}", "\\}");
-
-			return content.replaceAll(replacementString, replacement);
-		}
-
-		private static String parseNestedExpression(char prefix, String expression, JadeDoc doc)
-				throws ItemNotFoundException {
-			Pattern pattern = Pattern.compile(String.format(CHECK_KEYPATTERN, prefix));
-			StringBuilder currentExpression = new StringBuilder();
-			String newExpr = expression;
+		public static String parseExpression(char prefix, String expression, JadeDoc doc) throws ItemNotFoundException {
+			Queue<String> stack = new LinkedList<String>();
+			boolean started = false;
+			if(expression == null) {
+				return null;
+			}
 			for (int i = 0; i < expression.length(); i++) {
 				char c = expression.charAt(i);
-				if (c == prefix) {
-					if (currentExpression.length() > 0) {
-						// names.add(currentExpression.toString());
-						currentExpression.setLength(0);
-					}
-				} else if (c == '{') {
+				if (c == prefix && expression.charAt(i + 1) == '{') {
+					started = true;
+				} else if (started && c == '{') {
 					int nesting = 1;
 					StringBuilder nestedExpression = new StringBuilder();
 					while (nesting > 0) {
@@ -629,35 +610,38 @@ public final class JadeDoc {
 						if (nesting > 0)
 							nestedExpression.append(c);
 					}
-					// System.out.println(String.format("nest: %s", nestedExpression.toString()));
 					String expr = nestedExpression.toString();
-					Matcher matcher = pattern.matcher(expr);
-					if (matcher.find()) {
-						String newData = parseNestedExpression(prefix, expr, doc);
-						String xx = nestedExpression.toString();
-						newExpr = replaceAll(prefix, newExpr, xx, newData);
+
+					if (expr.contains(prefix + "{")) {
+						String ret = parseExpression(prefix, expr, doc);
+						String ds = fetchString(ret, doc);
+						stack.add(ds);
 					} else {
-						newExpr = replaceAll(prefix, newExpr, String.format(S_S, prefix, expr), compile2(expr, doc));
+						String ds = fetchString(expr, doc);
+						stack.add(ds);
 					}
 				} else {
-					currentExpression.append(c);
+					stack.add(c + "");
 				}
 			}
-			return lastCompile(prefix, newExpr, doc);
+			StringBuilder curr = new StringBuilder();
+			for (var s : stack) {
+				curr.append(s);
+			}
+			return curr.toString();
 		}
 
-		private static String parseNestedExpressionX(char prefix, String expression, JadeDoc doc) {
-			Pattern pattern = Pattern.compile(String.format(CHECK_KEYPATTERN, prefix));
-			StringBuilder currentExpression = new StringBuilder();
-			String newExpr = expression;
+		public static String parseExpressionX(char prefix, String expression, JadeDoc doc) {
+			Queue<String> stack = new LinkedList<String>();
+			boolean started = false;
+			if(expression == null) {
+				return null;
+			}
 			for (int i = 0; i < expression.length(); i++) {
 				char c = expression.charAt(i);
-				if (c == prefix) {
-					if (currentExpression.length() > 0) {
-						// names.add(currentExpression.toString());
-						currentExpression.setLength(0);
-					}
-				} else if (c == '{') {
+				if (c == prefix && expression.charAt(i + 1) == '{') {
+					started = true;
+				} else if (started && c == '{') {
 					int nesting = 1;
 					StringBuilder nestedExpression = new StringBuilder();
 					while (nesting > 0) {
@@ -669,32 +653,32 @@ public final class JadeDoc {
 						if (nesting > 0)
 							nestedExpression.append(c);
 					}
-					// System.out.println(String.format("nest: %s", nestedExpression.toString()));
 					String expr = nestedExpression.toString();
-					Matcher matcher = pattern.matcher(expr);
-					if (matcher.find()) {
-						String newData = parseNestedExpressionX(prefix, expr, doc);
-						String xx = nestedExpression.toString();
-						newExpr = replaceAll(prefix, newExpr, xx, newData);
+
+					if (expr.contains(prefix + "{")) {
+						String ret = parseExpressionX(prefix, expr, doc);
+						String ds = fetchStringX(ret, doc);
+						stack.add(ds);
 					} else {
-						newExpr = replaceAll(prefix, newExpr, String.format(S_S, prefix, expr),
-								compile2X(prefix, expr, doc));
+						String ds = fetchStringX(expr, doc);
+						stack.add(ds);
 					}
 				} else {
-					currentExpression.append(c);
+					stack.add(c + "");
 				}
 			}
-			return lastCompileX(prefix, newExpr, doc);
+			StringBuilder curr = new StringBuilder();
+			for (var s : stack) {
+				curr.append(s);
+			}
+			return curr.toString();
 		}
 
 		public final String compile(JadeDoc doc) throws ItemNotFoundException {
-			if (names.isEmpty()) {
-				return content;
-			}
-			return parseNestedExpression('@', this.content, doc);
+			return parseExpression('@', this.content, doc);
 		}
 
-		private static final String compile2(String key, JadeDoc doc) throws ItemNotFoundException {
+		private static final String fetchString(String key, JadeDoc doc) throws ItemNotFoundException {
 			Matcher matcher = HASDEFAULT.matcher(key);
 			if (matcher.matches()) {
 				String path = matcher.group(NAME);
@@ -704,75 +688,33 @@ public final class JadeDoc {
 			}
 		}
 
-		private static final String compile2X(char prefix, String key, JadeDoc doc) {
+		private static final String fetchStringX(String key, JadeDoc doc) {
 			Matcher matcher = HASDEFAULT.matcher(key);
 			if (matcher.matches()) {
 				String path = matcher.group(NAME);
 				return doc.getAsString(path, matcher.group(VALUE));
 			} else {
-				return doc.getAsString(key, String.format(S_S, prefix, key));
+				return doc.getAsString(key, "null");
 			}
 		}
 
 		public final String compileX(JadeDoc doc) {
-			if (names.isEmpty()) {
-				return content;
-			}
-			return parseNestedExpressionX('@', this.content, doc);
-		}
-
-		private static final String lastCompile(char prefix, String expr, JadeDoc doc) throws ItemNotFoundException {
-			List<String> newNames = new ArrayList<>();
-			Pattern expressionKeyPattern = Pattern.compile(String.format(KEYPATTERN, prefix));
-			Matcher match = expressionKeyPattern.matcher(expr);
-			while (match.find()) {
-				newNames.add(match.group(NAME));
-			}
-			if (newNames.isEmpty()) {
-				return expr;
-			}
-			String key = expr;
-			for (String v : newNames) {
-				String value;
-				Matcher matcher = HASDEFAULT.matcher(v);
-				if (matcher.matches()) {
-					String path = matcher.group(NAME);
-					value = doc.getAsString(path, matcher.group(VALUE));
-				} else {
-					value = doc.getAsString(v);
-				}
-				key = replaceAll(prefix, key, String.format(S_S, prefix, v), value);
-			}
-			return key;
-		}
-
-		private static final String lastCompileX(char prefix, String expr, JadeDoc doc) {
-			List<String> newNames = new ArrayList<>();
-			Pattern expressionKeyPattern = Pattern.compile(String.format(KEYPATTERN, prefix));
-			Matcher match = expressionKeyPattern.matcher(expr);
-			while (match.find()) {
-				newNames.add(match.group(NAME));
-			}
-			if (newNames.isEmpty()) {
-				return expr;
-			}
-			String key = expr;
-			for (String v : newNames) {
-				String value;
-				Matcher matcher = HASDEFAULT.matcher(v);
-				if (matcher.matches()) {
-					String path = matcher.group(NAME);
-					value = doc.getAsString(path, matcher.group(VALUE));
-				} else {
-					value = doc.getAsString(v, null);
-				}
-				key = replaceAll(prefix, key, String.format(S_S, prefix, v), String.valueOf(value));
-			}
-			return key;
+			return parseExpressionX('@', this.content, doc);
 		}
 
 		public final List<String> compileXs(JadeDoc doc) {
 			List<String> xs = new ArrayList<>();
+			if (StringUtils.isBlank(content)) {
+				return xs;
+			}
+
+			List<String> names = new ArrayList<>();
+			Pattern expressionKeyPattern = Pattern.compile(String.format(KEYPATTERN, prefix));
+			Matcher match = expressionKeyPattern.matcher(content);
+			while (match.find()) {
+				names.add(match.group(NAME));
+			}
+
 			if (names.isEmpty()) {
 				xs.add(content);
 				return xs;
@@ -780,7 +722,7 @@ public final class JadeDoc {
 			List<String> keys = new ArrayList<>();
 			keys.add(content);
 			Set<String> vkeys = new HashSet<>();
-			for (String v : this.names) {
+			for (String v : names) {
 				String path = v;
 				String defVal = "NULL";
 				Matcher matcher = HASDEFAULT.matcher(v);
@@ -949,10 +891,10 @@ public final class JadeDoc {
 				if (el.isJsonObject()) {
 					merge(el.getAsJsonObject(), e.getAsJsonObject());
 				} else {
-					if(target.get(x.getKey()) == null) {
-						target.add(x.getKey(), x.getValue());	
+					if (target.get(x.getKey()) == null) {
+						target.add(x.getKey(), x.getValue());
 					} else {
-						if(x.getValue() != null) {
+						if (x.getValue() != null) {
 							target.add(x.getKey(), x.getValue());
 						}
 					}
@@ -2672,7 +2614,7 @@ public final class JadeDoc {
 					}
 					JPathTemplate.add(model.root, target, source, sourceStr, this.values);
 				}
-				
+
 				for (String pattern : this.template.actions) {
 					JPathAction.process(model.root, pattern, values);
 				}
