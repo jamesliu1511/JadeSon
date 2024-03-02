@@ -1,17 +1,20 @@
 package com.jade.test;
 
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.Queue;
 
 import org.junit.jupiter.api.Test;
 
 import com.jade.path.JadeDoc;
+import com.jade.path.exception.ItemNotFoundException;
 
 public class Expression {
 
 	@Test
 	public void test1() {
-		//String expression = "@{@{action@{abc}}/handler}, @abc, @{action}/handler, @{abc}-@{action}";
+		// String expression = "@{@{action@{abc}}/handler}, @abc, @{action}/handler,
+		// @{abc}-@{action}";
 		String expression = "action/handler";
 		JadeDoc doc = JadeDoc.build().create();
 		doc.add("action", "edit");
@@ -24,12 +27,20 @@ public class Expression {
 		System.out.println("Result: " + result);
 	}
 
+	@Test 
+	void test2() throws ItemNotFoundException {
+		JadeDoc doc = JadeDoc.build().create("{\"month\":[\"8\"]}");
+		String[] months = doc.getAsArray("month", String.class);
+		
+		System.out.println(Arrays.toString(months));
+	}
+	
 	public static String parseExpression(char prefix, String expression, JadeDoc doc) {
 		Queue<String> stack = new LinkedList<String>();
 		boolean started = false;
 		for (int i = 0; i < expression.length(); i++) {
 			char c = expression.charAt(i);
-			if (c == prefix && expression.charAt(i+1) == '{') {
+			if (c == prefix && expression.charAt(i + 1) == '{') {
 				started = true;
 			} else if (started && c == '{') {
 				int nesting = 1;

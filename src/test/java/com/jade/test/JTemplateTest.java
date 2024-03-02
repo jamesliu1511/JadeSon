@@ -1,5 +1,8 @@
 package com.jade.test;
 
+import java.sql.Date;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiPredicate;
@@ -277,5 +280,41 @@ public class JTemplateTest {
 		expression = "@{edit2/handler}";
 		pattern = new CompiledPattern(expression);
 		System.out.println(pattern.compileX(doc));
+	}
+	
+	@Test
+	public void test45() {
+        SimpleDateFormat[] dateFormats = {
+                new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss"),
+                new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"),
+                new SimpleDateFormat("yyyy-MM-dd'T'HH:mm"),
+                new SimpleDateFormat("yyyy-MM-dd HH:mm"),
+                new SimpleDateFormat("yyyy-MM-dd")
+                // Add more date formats as needed
+        };
+        String dateString = "2023-11-13";
+        for (SimpleDateFormat dateFormat : dateFormats) {
+            try {
+                System.out.println(dateFormat.parse(dateString)); 
+            } catch (ParseException ignored) {
+                ignored.printStackTrace();
+            }
+        }
+	}
+	
+	@Test
+	public void test46() {
+		try {
+            // 使用 SimpleDateFormat 将字符串解析为 java.util.Date
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+            java.util.Date utilDate = dateFormat.parse("2023-11-13");
+
+            // 将 java.util.Date 转换为 java.sql.Date
+            Date sqlDate = new Date(utilDate.getTime());
+
+            System.out.println(sqlDate); // 输出解析后的 SQL Date 对象
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
 	}
 }

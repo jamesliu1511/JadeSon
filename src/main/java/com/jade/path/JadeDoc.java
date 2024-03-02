@@ -13,6 +13,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.text.DateFormat;
 import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -75,6 +76,7 @@ import com.google.gson.JsonSerializer;
 import com.google.gson.ToNumberStrategy;
 import com.google.gson.TypeAdapter;
 import com.google.gson.internal.LinkedTreeMap;
+import com.google.gson.reflect.TypeToken;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import com.google.gson.stream.JsonWriter;
@@ -102,7 +104,7 @@ public final class JadeDoc {
 	private static final Pattern BYTEPATTERN = Pattern.compile("-?\\d{1,2}");
 	private static final Pattern SHORTPATTERN = Pattern.compile("-?\\d{1,5}");
 	private static final Pattern INTPATTERN = Pattern.compile("-?\\d{1,10}");
-	private static final Pattern LONGPATTERN = Pattern.compile("-?\\d{11,20}");
+	private static final Pattern LONGPATTERN = Pattern.compile("-?\\d{11,}");
 	private static final Pattern FLOATPATTERN = Pattern.compile("[+-]?(\\d+|\\d+\\.\\d+|\\.\\d+|\\d+\\.)([eE]\\d+)?");
 	private static final Pattern BOOLPATTERN = Pattern.compile("([tT][Rr][Uu][Ee]|[Ff][Aa][Ll][Ss][Ee])");
 
@@ -371,7 +373,8 @@ public final class JadeDoc {
 	}
 
 	public <T> T fromJson(Class<T> classOfT) {
-		return gson.fromJson(this.toJson(), classOfT);
+		return from(this.toJson(), classOfT);
+		// return gson.fromJson(this.toJson(), classOfT);
 	}
 
 	public <T> T fromJson(String pattern, Class<T> classOfT) {
@@ -545,21 +548,30 @@ public final class JadeDoc {
 			return null;
 		}
 
-		Matcher matcher = SHORTPATTERN.matcher(value);
-		if (matcher.matches()) {
-			return Short.parseShort(value);
+		Matcher matcher = null;
+		try {
+			matcher = SHORTPATTERN.matcher(value);
+			if (matcher.matches()) {
+				return Short.parseShort(value);
+			}
+		} catch (NumberFormatException ex) {
 		}
 
-		matcher = INTPATTERN.matcher(value);
-		if (matcher.matches()) {
-			return Integer.parseInt(value);
+		try {
+			matcher = INTPATTERN.matcher(value);
+			if (matcher.matches()) {
+				return Integer.parseInt(value);
+			}
+		} catch (NumberFormatException e) {
 		}
-
-		matcher = LONGPATTERN.matcher(value);
-		if (matcher.matches()) {
-			return Long.parseLong(value);
+		try {
+			matcher = LONGPATTERN.matcher(value);
+			if (matcher.matches()) {
+				return Long.parseLong(value);
+			}
+		} catch (NumberFormatException x) {
+			return Double.parseDouble(value);
 		}
-
 		return Double.parseDouble(value);
 	}
 
@@ -591,7 +603,7 @@ public final class JadeDoc {
 		public static String parseExpression(char prefix, String expression, JadeDoc doc) throws ItemNotFoundException {
 			Queue<String> stack = new LinkedList<String>();
 			boolean started = false;
-			if(expression == null) {
+			if (expression == null) {
 				return null;
 			}
 			for (int i = 0; i < expression.length(); i++) {
@@ -634,7 +646,7 @@ public final class JadeDoc {
 		public static String parseExpressionX(char prefix, String expression, JadeDoc doc) {
 			Queue<String> stack = new LinkedList<String>();
 			boolean started = false;
-			if(expression == null) {
+			if (expression == null) {
 				return null;
 			}
 			for (int i = 0; i < expression.length(); i++) {
@@ -1226,18 +1238,17 @@ public final class JadeDoc {
 	@SuppressWarnings("unchecked")
 	public <T> T[] getAsArray(String pattern, Class<T> requiredType) throws ItemNotFoundException {
 		JsonElement el = check(pattern);
-		List<T> result = new ArrayList<>();
+		T[] result = null;
 
 		if (el.isJsonArray()) {
 			var es = el.getAsJsonArray();
+			result = (T[])java.lang.reflect.Array.newInstance(requiredType, es.size());
 			for (int i = 0; i < es.size(); i++) {
-				Object x;
-				x = this.getJsonElementAsFuns.get(requiredType).apply(es.get(i));
-				result.add((T) x);
+				result[i] = (T) this.getJsonElementAsFuns.get(requiredType).apply(es.get(i));
 			}
 		}
 
-		return (T[]) result.toArray();
+		return result;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -1256,7 +1267,6 @@ public final class JadeDoc {
 			var x = this.getJsonElementAsFuns.get(requiredType).apply(el);
 			result.add((T) x);
 		}
-
 		return result;
 	}
 
@@ -1283,6 +1293,10 @@ public final class JadeDoc {
 	public float getAsFloat(String pattern) throws ItemNotFoundException {
 		JsonElement el = check(pattern);
 		return el.getAsFloat();
+	}
+	
+	public float getAsFloat(String pattern, float defaultValue) {
+		return this.getWithDefault(pattern, defaultValue, JsonElement::getAsFloat);
 	}
 
 	public boolean getAsBoolean(String pattern) throws ItemNotFoundException {
@@ -1325,6 +1339,15 @@ public final class JadeDoc {
 			return DateFormat.getDateInstance().parse(el.getAsString());
 		} catch (ParseException e) {
 			throw new ItemNotFoundException(pattern);
+		}
+	}
+
+	public Date getAsDate(String pattern, Date defValue) {
+		try {
+			JsonElement el = check(pattern);
+			return DateFormat.getDateInstance().parse(el.getAsString());
+		} catch (Exception e) {
+			return defValue;
 		}
 	}
 
@@ -1444,7 +1467,14 @@ public final class JadeDoc {
 			if (first.get().getValue().isJsonNull()) {
 				return null;
 			}
-			return this.fromJson(name, cls);
+			try {
+				Object x = this.fromJson(name, cls);
+				if (x != null) {
+					return x;
+				}
+			} catch (Exception ex) {
+
+			}
 		}
 		return this.fromJson(cls);
 	}
@@ -1495,6 +1525,24 @@ public final class JadeDoc {
 		}
 
 		return el.getAsJsonPrimitive().isNumber();
+	}
+
+	public boolean isPrimitive(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		if (el == null) {
+			return false;
+		}
+
+		return el.isJsonPrimitive();
+	}
+
+	public boolean isArray(String pattern) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		if (el == null) {
+			return false;
+		}
+
+		return el.isJsonArray();
 	}
 
 	public <T> T getWithDefault(String pattern, T defaultValue, Function<JsonElement, T> trieveFun) {
@@ -2223,6 +2271,154 @@ public final class JadeDoc {
 		}
 	}
 
+//	public static class DateTypeAdapter implements JsonDeserializer<Date>, JsonSerializer<Date> {
+//		private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+//		
+//        private final SimpleDateFormat[] dateFormats = {
+//                new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss"),
+//                new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"),
+//                new SimpleDateFormat("yyyy-MM-dd'T'HH:mm"),
+//                new SimpleDateFormat("yyyy-MM-dd HH:mm"),
+//                new SimpleDateFormat("yyyy-MM-dd")
+//                // Add more date formats as needed
+//        };
+//
+//	    @Override
+//	    public Date deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
+//	        String dateStr = json.getAsString();
+//            for (SimpleDateFormat dateFormat : dateFormats) {
+//                try {
+//                    return dateFormat.parse(dateStr);
+//                } catch (ParseException ignored) {
+//                    // Try the next date format
+//                }
+//            }
+//            return null;
+//	    }
+//	    
+//	    @Override
+//	    public JsonElement serialize(Date src, Type typeOfSrc, JsonSerializationContext context) {
+//	        JsonObject jsonObject = new JsonObject();
+//	        jsonObject.addProperty("date", dateFormat.format(src));
+//	        return jsonObject;
+//	    }
+//	}
+
+	private static class DateTypeAdapter extends TypeAdapter<Date> {
+		private final SimpleDateFormat dateFormatT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		private final SimpleDateFormat dateFormatD = new SimpleDateFormat("yyyy-MM-dd");
+
+		private final SimpleDateFormat[] dateFormats = { new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss"),
+				new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"), new SimpleDateFormat("yyyy-MM-dd'T'HH:mm"),
+				new SimpleDateFormat("yyyy-MM-dd HH:mm"), new SimpleDateFormat("yyyy-MM-dd")
+				// Add more date formats as needed
+		};
+
+		@Override
+		public void write(JsonWriter out, Date value) throws IOException {
+			if (value == null) {
+				out.nullValue();
+				return;
+			}
+			String v = dateFormatT.format(value);
+			if(v.contains("00:00:00")) {
+				out.value(dateFormatD.format(value));
+			} else {
+				out.value(v);
+			}
+		}
+
+		@Override
+		public Date read(JsonReader in) throws IOException {
+			if (in.peek() == JsonToken.NULL) {
+				in.nextNull();
+				return null;
+			}
+			String dateString = in.nextString();
+			for (SimpleDateFormat dateFormat : dateFormats) {
+				try {
+					return dateFormat.parse(dateString);
+				} catch (ParseException ignored) {
+					// Try the next date format
+				}
+			}
+			throw new IOException("Unparseable date: " + dateString);
+		}
+	}
+
+	private static class SqlDateTypeAdapter extends TypeAdapter<java.sql.Date> {
+		private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+
+		private final SimpleDateFormat[] dateFormats = { new SimpleDateFormat("yyyy-MM-dd"),
+				new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss"), new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"),
+				new SimpleDateFormat("yyyy-MM-dd'T'HH:mm"), new SimpleDateFormat("yyyy-MM-dd HH:mm")
+				// Add more date formats as needed
+		};
+
+		@Override
+		public void write(JsonWriter out, java.sql.Date value) throws IOException {
+			if (value == null) {
+				out.nullValue();
+				return;
+			}
+			out.value(dateFormat.format(value));
+		}
+
+		@Override
+		public java.sql.Date read(JsonReader in) throws IOException {
+			if (in.peek() == JsonToken.NULL) {
+				in.nextNull();
+				return null;
+			}
+			String dateString = in.nextString();
+			for (SimpleDateFormat dateFormat : dateFormats) {
+				try {
+					Date dt = dateFormat.parse(dateString);
+					return new java.sql.Date(dt.getTime());
+				} catch (ParseException ignored) {
+					// Try the next date format
+				}
+			}
+			throw new IOException("Unparseable date: " + dateString);
+		}
+	}
+
+	private static class TimestampTypeAdapter extends TypeAdapter<java.sql.Timestamp> {
+		private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
+		private final SimpleDateFormat[] dateFormats = { new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss"),
+				new SimpleDateFormat("yyyy-MM-dd HH:mm:ss"), new SimpleDateFormat("yyyy-MM-dd'T'HH:mm"),
+				new SimpleDateFormat("yyyy-MM-dd HH:mm"), new SimpleDateFormat("yyyy-MM-dd") };
+
+		@Override
+		public void write(JsonWriter out, java.sql.Timestamp value) throws IOException {
+			if (value == null) {
+				out.nullValue();
+				return;
+			}
+
+			out.value(dateFormat.format(value));
+		}
+
+		@Override
+		public java.sql.Timestamp read(JsonReader in) throws IOException {
+			if (in.peek() == JsonToken.NULL) {
+				in.nextNull();
+				return null;
+			}
+			String dateString = in.nextString();
+			for (SimpleDateFormat dateFormat : dateFormats) {
+				try {
+					Date dt = dateFormat.parse(dateString);
+					return new java.sql.Timestamp(dt.getTime());
+				} catch (ParseException ignored) {
+					// Try the next date format
+				}
+			}
+			throw new IOException("Unparseable date: " + dateString);
+		}
+	}
+
 	public static class LazilyParsedNumber implements ToNumberStrategy {
 		@Override
 		public Number readNumber(JsonReader in) throws IOException {
@@ -2231,20 +2427,43 @@ public final class JadeDoc {
 		}
 	}
 
-	public static String toJson(Object obj) {
+	public static Object convert(Object obj, Type type) {
 		GsonBuilder builder = new GsonBuilder();
 		builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
 		builder.setObjectToNumberStrategy(new LazilyParsedNumber());
+		builder.registerTypeAdapter(Date.class, new DateTypeAdapter());
+		builder.registerTypeAdapter(java.sql.Date.class, new SqlDateTypeAdapter());
+		builder.registerTypeAdapter(java.sql.Timestamp.class, new TimestampTypeAdapter());
+		builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
+		var gson = builder.disableHtmlEscaping().create();
+		return gson.toJson(obj, type);
+	}
+
+	public static String toJson(Object obj) {
+		if (obj == null) {
+			return null;
+		}
+		GsonBuilder builder = new GsonBuilder();
+		builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
+		builder.setObjectToNumberStrategy(new LazilyParsedNumber());
+		builder.registerTypeAdapter(Date.class, new DateTypeAdapter());
+		builder.registerTypeAdapter(java.sql.Date.class, new SqlDateTypeAdapter());
 		builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
 		var gson = builder.disableHtmlEscaping().create();
 		return gson.toJson(obj);
 	}
 
 	public static <T> T from(String data, Class<T> classOfT) {
+		if (data == null) {
+			return null;
+		}
 		GsonBuilder builder = new GsonBuilder();
 		builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
 		builder.setObjectToNumberStrategy(new LazilyParsedNumber());
-		builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
+		builder.registerTypeAdapter(Date.class, new DateTypeAdapter());
+		builder.registerTypeAdapter(java.sql.Date.class, new SqlDateTypeAdapter());
+		builder.registerTypeAdapter(java.sql.Timestamp.class, new TimestampTypeAdapter());
+		// builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
 		var gson = builder.disableHtmlEscaping().create();
 		return gson.fromJson(data, classOfT);
 	}
@@ -2257,6 +2476,9 @@ public final class JadeDoc {
 			builder.registerTypeAdapter(JadeDoc.class, new JadeDocAdapter(null)).disableHtmlEscaping();
 			builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
 			builder.setObjectToNumberStrategy(new LazilyParsedNumber());
+			builder.registerTypeAdapter(Date.class, new DateTypeAdapter());
+			builder.registerTypeAdapter(java.sql.Date.class, new SqlDateTypeAdapter());
+			builder.registerTypeAdapter(java.sql.Timestamp.class, new TimestampTypeAdapter());
 			builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
 			this.gson = builder.disableHtmlEscaping().create();
 		}
@@ -2269,7 +2491,10 @@ public final class JadeDoc {
 			builder.registerTypeAdapter(JadeDoc.class, new JadeDocAdapter(template, values));
 			builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
 			builder.setObjectToNumberStrategy(new LazilyParsedNumber());
-			builder.setDateFormat("yyyy-MM-dd HH:mm:ssZ");
+			builder.registerTypeAdapter(Date.class, new DateTypeAdapter());
+			builder.registerTypeAdapter(java.sql.Date.class, new SqlDateTypeAdapter());
+			builder.registerTypeAdapter(java.sql.Timestamp.class, new TimestampTypeAdapter());
+			builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
 			this.gson = builder.disableHtmlEscaping().create();
 		}
 
@@ -2277,7 +2502,10 @@ public final class JadeDoc {
 			builder.registerTypeAdapter(JadeDoc.class, new JadeDocAdapter(template));
 			builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
 			builder.setObjectToNumberStrategy(new LazilyParsedNumber());
-			builder.setDateFormat("yyyy-MM-dd HH:mm:ssZ");
+			builder.registerTypeAdapter(Date.class, new DateTypeAdapter());
+			builder.registerTypeAdapter(java.sql.Date.class, new SqlDateTypeAdapter());
+			builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
+			builder.registerTypeAdapter(java.sql.Timestamp.class, new TimestampTypeAdapter());
 			this.gson = builder.disableHtmlEscaping().create();
 		}
 
@@ -2606,7 +2834,8 @@ public final class JadeDoc {
 					if (StringUtils.isBlank(target) || "*".equals(target)) {
 						JsonElement el = JPathProcessor.find(sourceStr, source);
 						if (el != null && el.isJsonObject()) {
-							model.join(el.getAsJsonObject());
+							var obj = el.getAsJsonObject();
+							model.join(obj);
 						} else {
 							model.add("NULL", el);
 						}
@@ -2628,7 +2857,7 @@ public final class JadeDoc {
 
 			@Override
 			public JsonElement serialize(JadeDoc model, Type arg1, JsonSerializationContext arg2) {
-				return model.content();
+				return gson.fromJson(model.toJson(), JsonObject.class);
 			}
 		}
 	}
