@@ -1110,6 +1110,21 @@ public final class JadeDoc {
 		return this;
 	}
 
+	public <T> JadeDoc add(String pattern, List<T> values, Class<T> itemClz) {
+		if (values == null) {
+			return this;
+		}
+		if (StringUtils.isBlank(pattern)) {
+			return this;
+		}
+		JsonArray array = new JsonArray();
+		for (Object obj : values) {
+			array.add(gson.fromJson(gson.toJson(obj, itemClz), JsonElement.class));
+		}
+		JPathTemplate.add(this.root, pattern, array);
+		return this;
+	}
+
 	public boolean has(String pattern) {
 		if (StringUtils.isBlank(pattern)) {
 			return false;
@@ -1178,6 +1193,14 @@ public final class JadeDoc {
 		JPathTemplate.add(this.root, pattern, new JsonPrimitive(element));
 		return this;
 	}
+	
+	public JadeDoc add(String pattern, Date element) {
+		if (StringUtils.isBlank(pattern)) {
+			return this;
+		}
+		JPathTemplate.add(this.root, pattern, new JsonPrimitive(element.toString()));
+		return this;
+	}
 
 	public JadeDoc add(String pattern, boolean element) {
 		if (StringUtils.isBlank(pattern)) {
@@ -1242,7 +1265,7 @@ public final class JadeDoc {
 
 		if (el.isJsonArray()) {
 			var es = el.getAsJsonArray();
-			result = (T[])java.lang.reflect.Array.newInstance(requiredType, es.size());
+			result = (T[]) java.lang.reflect.Array.newInstance(requiredType, es.size());
 			for (int i = 0; i < es.size(); i++) {
 				result[i] = (T) this.getJsonElementAsFuns.get(requiredType).apply(es.get(i));
 			}
@@ -1251,23 +1274,34 @@ public final class JadeDoc {
 		return result;
 	}
 
-	@SuppressWarnings("unchecked")
-	public <T> List<T> getAsList(String pattern, Class<T> requiredType) throws ItemNotFoundException {
-		JsonElement el = check(pattern);
-		List<T> result = new ArrayList<>();
+//	@SuppressWarnings("unchecked")
+//	public <T> List<T> getAsList(String pattern, Class<T> requiredType) throws ItemNotFoundException {
+//		JsonElement el = check(pattern);
+//		List<T> result = new ArrayList<>();
+//
+//		if (el.isJsonArray()) {
+//			var es = el.getAsJsonArray();
+//			for (int i = 0; i < es.size(); i++) {
+//				Object x;
+//				x = this.getJsonElementAsFuns.get(requiredType).apply(es.get(i));
+//				result.add((T) x);
+//			}
+//		} else {
+//			var x = this.getJsonElementAsFuns.get(requiredType).apply(el);
+//			result.add((T) x);
+//		}
+//		return result;
+//	}
 
-		if (el.isJsonArray()) {
-			var es = el.getAsJsonArray();
-			for (int i = 0; i < es.size(); i++) {
-				Object x;
-				x = this.getJsonElementAsFuns.get(requiredType).apply(es.get(i));
-				result.add((T) x);
-			}
-		} else {
-			var x = this.getJsonElementAsFuns.get(requiredType).apply(el);
-			result.add((T) x);
-		}
-		return result;
+	public <T> List<T> getAsList(String pattern, Class<T> clazz) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		Type type = TypeToken.getParameterized(List.class, clazz).getType();
+		return gson.fromJson(el, type);
+	}
+
+	public <T> List<T> getAsList(Class<T> clazz) throws ItemNotFoundException {
+		Type type = TypeToken.getParameterized(List.class, clazz).getType();
+		return gson.fromJson(this.root, type);
 	}
 
 	public long getAsLong(String pattern) throws ItemNotFoundException {
@@ -1294,7 +1328,7 @@ public final class JadeDoc {
 		JsonElement el = check(pattern);
 		return el.getAsFloat();
 	}
-	
+
 	public float getAsFloat(String pattern, float defaultValue) {
 		return this.getWithDefault(pattern, defaultValue, JsonElement::getAsFloat);
 	}
@@ -1402,12 +1436,18 @@ public final class JadeDoc {
 	}
 
 	public Map<String, ?> getAsMap(String pattern) throws ItemNotFoundException {
-		JsonElement el = check(pattern);
-		if (!el.isJsonObject()) {
-			return new HashMap<>();
-		}
 		Map<String, Object> result = new HashMap<>();
-		el.getAsJsonObject().entrySet().forEach(ev -> result.put(ev.getKey(), ev.getValue()));
+		if (StringUtils.isNotBlank(pattern)) {
+			JsonElement el = check(pattern);
+			if (!el.isJsonObject()) {
+				return new HashMap<>();
+			}
+			el.getAsJsonObject().entrySet().forEach(ev -> result.put(ev.getKey(), ev.getValue()));
+			return result;
+		} else {
+			this.root.entrySet().forEach(ev -> result.put(ev.getKey(), ev.getValue()));
+
+		}
 		return result;
 	}
 
@@ -2321,7 +2361,7 @@ public final class JadeDoc {
 				return;
 			}
 			String v = dateFormatT.format(value);
-			if(v.contains("00:00:00")) {
+			if (v.contains("00:00:00")) {
 				out.value(dateFormatD.format(value));
 			} else {
 				out.value(v);
@@ -2466,6 +2506,22 @@ public final class JadeDoc {
 		// builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
 		var gson = builder.disableHtmlEscaping().create();
 		return gson.fromJson(data, classOfT);
+	}
+
+	public static <T> List<T> listFrom(String data, Class<T> clazz) {
+		if (data == null) {
+			return null;
+		}
+		GsonBuilder builder = new GsonBuilder();
+		builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
+		builder.setObjectToNumberStrategy(new LazilyParsedNumber());
+		builder.registerTypeAdapter(Date.class, new DateTypeAdapter());
+		builder.registerTypeAdapter(java.sql.Date.class, new SqlDateTypeAdapter());
+		builder.registerTypeAdapter(java.sql.Timestamp.class, new TimestampTypeAdapter());
+		// builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
+		var gson = builder.disableHtmlEscaping().create();
+		Type listType = TypeToken.getParameterized(List.class, clazz).getType();
+        return gson.fromJson(data, listType);
 	}
 
 	public static class Builder {

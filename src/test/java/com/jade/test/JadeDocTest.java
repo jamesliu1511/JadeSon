@@ -63,10 +63,8 @@ class JadeDocTest {
 
 	@Test
 	void testSerialize() throws IOException {
-		JadeDoc doc = JadeDoc.build().create();
-		doc.add("test", 123);
-		Integer x = doc.fromJson("test", Integer.class);
-		System.out.println(x);
+		JadeDoc doc = JadeDoc.build().create(read("base64.json"));
+		System.out.println(doc);
 	}
 
 	@Test
