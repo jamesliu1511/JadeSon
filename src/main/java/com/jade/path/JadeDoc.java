@@ -377,7 +377,23 @@ public final class JadeDoc {
 		// return gson.fromJson(this.toJson(), classOfT);
 	}
 
+	public <T> T fromJson(Type classOfT) {
+		return gson.fromJson(this.toJson(), classOfT);
+	}
+
 	public <T> T fromJson(String pattern, Class<T> classOfT) {
+		if (StringUtils.isBlank(pattern)) {
+			return this.fromJson(classOfT);
+		}
+		JsonElement content = this.get(pattern);
+		if (content == null) {
+			return null;
+		}
+		var json = content.toString();
+		return gson.fromJson(json, classOfT);
+	}
+
+	public <T> T fromJson(String pattern, Type classOfT) {
 		if (StringUtils.isBlank(pattern)) {
 			return this.fromJson(classOfT);
 		}
@@ -1193,7 +1209,7 @@ public final class JadeDoc {
 		JPathTemplate.add(this.root, pattern, new JsonPrimitive(element));
 		return this;
 	}
-	
+
 	public JadeDoc add(String pattern, Date element) {
 		if (StringUtils.isBlank(pattern)) {
 			return this;
@@ -1294,6 +1310,12 @@ public final class JadeDoc {
 //	}
 
 	public <T> List<T> getAsList(String pattern, Class<T> clazz) throws ItemNotFoundException {
+		JsonElement el = check(pattern);
+		Type type = TypeToken.getParameterized(List.class, clazz).getType();
+		return gson.fromJson(el, type);
+	}
+	
+	public <T> List<T> getAsList(String pattern, Type... clazz) throws ItemNotFoundException {
 		JsonElement el = check(pattern);
 		Type type = TypeToken.getParameterized(List.class, clazz).getType();
 		return gson.fromJson(el, type);
@@ -1478,8 +1500,62 @@ public final class JadeDoc {
 
 		return this.fromJson(name, cls);
 	}
+	
+
+	public Object getObject(String name, Type cls) throws ItemNotFoundException {
+		if (cls == null) {
+			return this.getObject(name);
+		}
+
+		return this.fromJson(name, cls);
+	}
 
 	public Object getObject(String name, Class<?> cls, boolean ignoreCase) throws ItemNotFoundException {
+		if (!ignoreCase) {
+			return this.getObject(name, cls);
+		}
+
+		if (cls == null) {
+			var first = this.root.entrySet().stream().filter((v) -> v.getKey().equalsIgnoreCase(name)).findFirst();
+			if (first.isPresent()) {
+				return first.get().getValue();
+			}
+			return null;
+		}
+
+		if (this.getAsFuns.containsKey(cls)) {
+			var first = this.root.entrySet().stream().filter((v) -> v.getKey().equalsIgnoreCase(name)).findFirst();
+			if (first.isPresent()) {
+				if (first.get().getValue().isJsonNull()) {
+					return null;
+				}
+				return this.getAsFuns.get(cls).apply(first.get().getKey());
+			}
+			return null;
+		}
+		var first = this.root.entrySet().stream().filter((v) -> v.getKey().equalsIgnoreCase(name)).findFirst();
+		if (first.isPresent()) {
+			if (first.get().getValue().isJsonNull()) {
+				return null;
+			}
+			try {
+				Object x = this.fromJson(name, cls);
+				if (x != null) {
+					return x;
+				}
+			} catch (Exception ex) {
+
+			}
+		}
+		return this.fromJson(cls);
+	}
+	
+	
+	public static final Class<?> getFromType(Type type) {
+		return TypeToken.get(type).getRawType();
+	}
+	
+	public Object getObject(String name, Type cls, boolean ignoreCase) throws ItemNotFoundException {
 		if (!ignoreCase) {
 			return this.getObject(name, cls);
 		}
@@ -2508,6 +2584,37 @@ public final class JadeDoc {
 		return gson.fromJson(data, classOfT);
 	}
 
+	public static <T> T from(String data, Type classOfT) {
+		if (data == null) {
+			return null;
+		}
+		GsonBuilder builder = new GsonBuilder();
+		builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
+		builder.setObjectToNumberStrategy(new LazilyParsedNumber());
+		builder.registerTypeAdapter(Date.class, new DateTypeAdapter());
+		builder.registerTypeAdapter(java.sql.Date.class, new SqlDateTypeAdapter());
+		builder.registerTypeAdapter(java.sql.Timestamp.class, new TimestampTypeAdapter());
+		// builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
+		var gson = builder.disableHtmlEscaping().create();
+		return gson.fromJson(data, classOfT);
+	}
+
+	public static <T> T from(Map<String, Object> data, Class<T> classOfT) {
+		if (data == null) {
+			return null;
+		}
+		GsonBuilder builder = new GsonBuilder();
+		builder.registerTypeAdapter(Map.class, new MapAdapter()).disableHtmlEscaping();
+		builder.setObjectToNumberStrategy(new LazilyParsedNumber());
+		builder.registerTypeAdapter(Date.class, new DateTypeAdapter());
+		builder.registerTypeAdapter(java.sql.Date.class, new SqlDateTypeAdapter());
+		builder.registerTypeAdapter(java.sql.Timestamp.class, new TimestampTypeAdapter());
+		// builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
+		var gson = builder.disableHtmlEscaping().create();
+		String dataStr = gson.toJson(data);
+		return gson.fromJson(dataStr, classOfT);
+	}
+
 	public static <T> List<T> listFrom(String data, Class<T> clazz) {
 		if (data == null) {
 			return null;
@@ -2521,7 +2628,7 @@ public final class JadeDoc {
 		// builder.setDateFormat("yyyy-MM-dd HH:mm:ss");
 		var gson = builder.disableHtmlEscaping().create();
 		Type listType = TypeToken.getParameterized(List.class, clazz).getType();
-        return gson.fromJson(data, listType);
+		return gson.fromJson(data, listType);
 	}
 
 	public static class Builder {
